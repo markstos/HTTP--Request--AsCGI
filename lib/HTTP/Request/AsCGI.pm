@@ -77,10 +77,10 @@ sub setup {
     if ( $self->request->content_length ) {
 
         $self->stdin->syswrite( $self->request->content )
-          or croak("Can't write content to stdin: $!");
+          or croak("Can't write request content to stdin handle: $!");
 
         $self->stdin->sysseek( 0, SEEK_SET )
-          or croak("Can't seek stdin: $!");
+          or croak("Can't seek stdin handle: $!");
     }
 
     {
@@ -102,6 +102,61 @@ sub setup {
     return $self;
 }
 
+sub response {
+    my ( $self, $callback ) = @_;
+
+    return undef unless $self->{setuped};
+    return undef unless $self->{restored};
+
+    require HTTP::Response;
+
+    my $message  = undef;
+    my $position = $self->stdin->tell;
+
+    $self->stdin->sysseek( 0, SEEK_SET )
+      or croak("Can't seek stdin handle: $!");
+
+    while ( my $line = $self->stdout->getline ) {
+        $message .= $line;
+        last if $line =~ /^\x0d?\x0a$/;
+    }
+
+    unless ( $message =~ /^HTTP/ ) {
+        $message = "HTTP/1.1 200\x0d\x0a" . $message;
+    }
+
+    my $response = HTTP::Response->parse($message);
+
+    if ( my $code = $response->header('Status') ) {
+        $response->code($code);
+    }
+
+    $response->protocol( $self->request->protocol );
+    $response->headers->date( time() );
+
+    if ( $callback ) {
+        $response->content( sub {
+            if ( $self->stdout->read( my $buffer, 4096 ) ) {
+                return $buffer;
+            }
+            return undef;
+        });        
+    }
+    else {
+        my $length = 0;
+        while ( $self->stdout->read( my $buffer, 4096 ) ) {
+            $length += length($buffer);
+            $response->add_content($buffer);
+        }
+        $response->content_length($length) unless $response->content_length;
+    }
+
+    $self->stdin->sysseek( $position, SEEK_SET )
+      or croak("Can't seek stdin handle: $!");
+
+    return $response;
+}
+
 sub restore {
     my $self = shift;
 
@@ -116,10 +171,8 @@ sub restore {
     open( STDERR, '>&', $self->{restore}->{stderr} )
       or croak("Can't restore stderr: $!");
 
-    if ( $self->stdin->fileno != STDIN->fileno ) {
-        $self->stdin->sysseek( 0, SEEK_SET )
-          or croak("Can't seek stdin: $!");
-    }
+    $self->stdin->sysseek( 0, SEEK_SET )
+      or croak("Can't seek stdin: $!");
 
     if ( $self->stdout->fileno != STDOUT->fileno ) {
         $self->stdout->sysseek( 0, SEEK_SET )
@@ -189,6 +242,8 @@ HTTP::Request::AsCGI - Setup a CGI enviroment from a HTTP::Request
 =item restore
 
 =item request
+
+=item response
 
 =item stdin
 

@@ -27,6 +27,9 @@ while ( my $client = $server->accept ) {
 
         CGI::initialize_globals();
 
+        $request->uri->scheme('http');
+        $request->uri->host_port( $request->header('Host') || URI->new($server)->host_port );
+
         my $c = HTTP::Request::AsCGI->new( $request, %e )->setup;
         my $q = CGI->new;
 
@@ -37,31 +40,13 @@ while ( my $client = $server->accept ) {
 
         $c->restore;
 
-        my $message = "HTTP/1.1 200\x0d\x0a";
-
-        while ( my $line = $c->stdout->getline ) {
-            $message .= $line;
-            last if $line =~ /^\x0d?\x0a$/;
-        }
-
-        my $response = HTTP::Response->parse($message);
-
-        if ( my $code = $response->header('Status') ) {
-            $response->code($code);
-        }
-
+        my $response = $c->response;
+        
+        # set close to prevent blocking problems in single threaded daemon
         $response->header( Connection => 'close' );
-        $response->protocol( $request->protocol );
-        $response->content( sub {
-            if ( $c->stdout->read( my $buffer, 4096 ) ) {
-                return $buffer;
-            }
-            return undef;
-        });
 
         $client->send_response($response);
-        $client->close;
     }
 
-    #$client->close;
+    $client->close;
 }
