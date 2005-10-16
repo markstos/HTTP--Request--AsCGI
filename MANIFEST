@@ -1,4 +1,6 @@
 lib/HTTP/Request/AsCGI.pm
+examples/daemon.pl
+examples/synopsis.pl
 t/01use.t
 t/04io.t
 t/05env.t
