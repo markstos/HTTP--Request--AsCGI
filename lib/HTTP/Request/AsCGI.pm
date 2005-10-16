@@ -18,6 +18,7 @@ sub new {
     my $self = {
         request  => $request,
         restored => 0,
+        setuped  => 0,
         stdin    => IO::File->new_tmpfile,
         stdout   => IO::File->new_tmpfile,
         stderr   => IO::File->new_tmpfile
@@ -92,6 +93,8 @@ sub setup {
 
     open( STDERR, '>&=', $self->stderr->fileno )
       or croak("Can't open stderr: $!");
+      
+    $self->{setuped}++;
 
     return $self;
 }
@@ -110,21 +113,27 @@ sub restore {
     open( STDERR, '>&', $self->{restore}->{stderr} )
       or croak("Can't restore stderr: $!");
 
-    $self->stdin->sysseek( 0, SEEK_SET )
-      or croak("Can't seek stdin: $!");
+    if ( $self->stdin->fileno != STDIN->fileno ) {
+        $self->stdin->sysseek( 0, SEEK_SET )
+          or croak("Can't seek stdin: $!");
+    }
 
-    $self->stdout->sysseek( 0, SEEK_SET )
-      or croak("Can't seek stdout: $!");
+    if ( $self->stdout->fileno != STDOUT->fileno ) {
+        $self->stdout->sysseek( 0, SEEK_SET )
+          or croak("Can't seek stdout: $!");
+    }
 
-    $self->stderr->sysseek( 0, SEEK_SET )
-      or croak("Can't seek stderr: $!");
+    if ( $self->stderr->fileno != STDERR->fileno ) {
+        $self->stderr->sysseek( 0, SEEK_SET )
+          or croak("Can't seek stderr: $!");
+    }
 
     $self->{restored}++;
 }
 
 sub DESTROY {
     my $self = shift;
-    $self->restore unless $self->{restored};
+    $self->restore if $self->{setuped} && !$self->{restored};
 }
 
 1;
