@@ -2,12 +2,13 @@ package HTTP::Request::AsCGI;
 
 use strict;
 use warnings;
+use bytes;
 use base 'Class::Accessor::Fast';
 
 use Carp;
 use IO::File;
 
-__PACKAGE__->mk_accessors( qw[ enviroment request stdin stdout stderr ] );
+__PACKAGE__->mk_accessors(qw[ enviroment request stdin stdout stderr ]);
 
 our $VERSION = 0.1;
 
@@ -27,6 +28,7 @@ sub new {
     $self->{enviroment} = {
         GATEWAY_INTERFACE => 'CGI/1.1',
         HTTP_HOST         => $request->uri->host_port,
+        PATH_INFO         => $request->uri->path,
         QUERY_STRING      => $request->uri->query || '',
         SCRIPT_NAME       => '/',
         SERVER_NAME       => $request->uri->host,
@@ -58,21 +60,15 @@ sub new {
 sub setup {
     my $self = shift;
 
-    open( my $stdin, '>&', STDIN->fileno )
+    $self->{restore}->{enviroment} = {%ENV};
+
+    open( $self->{restore}->{stdin}, '>&', STDIN->fileno )
       or croak("Can't dup stdin: $!");
 
-    open( my $stdout, '>&', STDOUT->fileno )
-      or croak("Can't dup stdout: $!");
-
-    open( my $stderr, '>&', STDERR->fileno )
-      or croak("Can't dup stderr: $!");
-
-    $self->{restore} = {
-        stdin      => $stdin,
-        stdout     => $stdout,
-        stderr     => $stderr,
-        enviroment => {%ENV}
-    };
+    open( STDIN, '<&=', $self->stdin->fileno )
+      or croak("Can't open stdin: $!");
+      
+    binmode( STDIN, ':raw' );
 
     if ( $self->request->content_length ) {
 
@@ -83,20 +79,31 @@ sub setup {
           or croak("Can't seek stdin handle: $!");
     }
 
+    if ( $self->stdout ) {
+        open( $self->{restore}->{stdout}, '>&', STDOUT->fileno )
+          or croak("Can't dup stdout: $!");
+
+        open( STDOUT, '>&=', $self->stdout->fileno )
+          or croak("Can't open stdout: $!");
+          
+        binmode( STDOUT, ':raw' );
+    }
+
+    if ( $self->stderr ) {
+        open( $self->{restore}->{stderr}, '>&', STDERR->fileno )
+          or croak("Can't dup stderr: $!");
+
+        open( STDERR, '>&=', $self->stderr->fileno )
+          or croak("Can't open stderr: $!");
+        
+        binmode( STDERR, ':raw' );
+    }
+
     {
         no warnings 'uninitialized';
         %ENV = %{ $self->enviroment };
     }
 
-    open( STDIN, '<&=', $self->stdin->fileno )
-      or croak("Can't open stdin: $!");
-
-    open( STDOUT, '>&=', $self->stdout->fileno )
-      or croak("Can't open stdout: $!");
-
-    open( STDERR, '>&=', $self->stderr->fileno )
-      or croak("Can't open stderr: $!");
-      
     $self->{setuped}++;
 
     return $self;
@@ -107,13 +114,14 @@ sub response {
 
     return undef unless $self->{setuped};
     return undef unless $self->{restored};
+    return undef unless $self->{restore}->{stdout};
 
     require HTTP::Response;
 
     my $message  = undef;
     my $position = $self->stdin->tell;
 
-    $self->stdin->sysseek( 0, SEEK_SET )
+    $self->stdout->sysseek( 0, SEEK_SET )
       or croak("Can't seek stdin handle: $!");
 
     while ( my $line = $self->stdout->getline ) {
@@ -134,13 +142,13 @@ sub response {
     $response->protocol( $self->request->protocol );
     $response->headers->date( time() );
 
-    if ( $callback ) {
+    if ($callback) {
         $response->content( sub {
             if ( $self->stdout->read( my $buffer, 4096 ) ) {
                 return $buffer;
             }
             return undef;
-        });        
+        });
     }
     else {
         my $length = 0;
@@ -151,7 +159,7 @@ sub response {
         $response->content_length($length) unless $response->content_length;
     }
 
-    $self->stdin->sysseek( $position, SEEK_SET )
+    $self->stdout->sysseek( $position, SEEK_SET )
       or croak("Can't seek stdin handle: $!");
 
     return $response;
@@ -165,26 +173,28 @@ sub restore {
     open( STDIN, '>&', $self->{restore}->{stdin} )
       or croak("Can't restore stdin: $!");
 
-    open( STDOUT, '>&', $self->{restore}->{stdout} )
-      or croak("Can't restore stdout: $!");
-
-    open( STDERR, '>&', $self->{restore}->{stderr} )
-      or croak("Can't restore stderr: $!");
-
     $self->stdin->sysseek( 0, SEEK_SET )
       or croak("Can't seek stdin: $!");
 
-    if ( $self->stdout->fileno != STDOUT->fileno ) {
+    if ( $self->{restore}->{stdout} ) {
+        open( STDOUT, '>&', $self->{restore}->{stdout} )
+          or croak("Can't restore stdout: $!");
+
         $self->stdout->sysseek( 0, SEEK_SET )
           or croak("Can't seek stdout: $!");
     }
 
-    if ( $self->stderr->fileno != STDERR->fileno ) {
+    if ( $self->{restore}->{stderr} ) {
+        open( STDERR, '>&', $self->{restore}->{stderr} )
+          or croak("Can't restore stderr: $!");
+
         $self->stderr->sysseek( 0, SEEK_SET )
           or croak("Can't seek stderr: $!");
     }
 
     $self->{restored}++;
+
+    return $self;
 }
 
 sub DESTROY {

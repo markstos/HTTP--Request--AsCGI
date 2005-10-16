@@ -42,7 +42,7 @@ while ( my $client = $server->accept ) {
 
         my $response = $c->response;
         
-        # set close to prevent blocking problems in single threaded daemon
+        # to prevent blocking problems in single threaded daemon.
         $response->header( Connection => 'close' );
 
         $client->send_response($response);
