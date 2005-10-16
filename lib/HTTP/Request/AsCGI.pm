@@ -83,7 +83,10 @@ sub setup {
           or croak("Can't seek stdin: $!");
     }
 
-    %ENV = %{ $self->enviroment };
+    {
+        no warnings 'uninitialized';
+        %ENV = %{ $self->enviroment };
+    }
 
     open( STDIN, '<&=', $self->stdin->fileno )
       or croak("Can't open stdin: $!");
