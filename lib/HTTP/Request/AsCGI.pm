@@ -5,8 +5,7 @@ use warnings;
 use base 'Class::Accessor::Fast';
 
 use Carp;
-use IO::Handle;
-use File::Temp;
+use IO::File;
 
 __PACKAGE__->mk_accessors( qw[ enviroment request stdin stdout stderr ] );
 
@@ -19,9 +18,9 @@ sub new {
     my $self = {
         request  => $request,
         restored => 0,
-        stdin    => File::Temp->new,
-        stdout   => File::Temp->new,
-        stderr   => File::Temp->new
+        stdin    => IO::File->new_tmpfile,
+        stdout   => IO::File->new_tmpfile,
+        stderr   => IO::File->new_tmpfile
     };
 
     $self->{enviroment} = {
@@ -125,10 +124,37 @@ __END__
 
 =head1 NAME
 
-HTTP::Request::AsCGI - Create a CGI enviroment from a HTTP::Request
+HTTP::Request::AsCGI - Setup a CGI enviroment from a HTTP::Request
 
 =head1 SYNOPSIS
 
+    use CGI;
+    use HTTP::Request;
+    use HTTP::Request::AsCGI;
+    
+    my $request = HTTP::Request->new( GET => 'http://www.host.com/' );
+    my $stdout;
+    
+    {
+        my $c = HTTP::Request::AsCGI->new($request)->setup;
+        my $q = CGI->new;
+        
+        print $q->header,
+              $q->start_html('Hello World'),
+              $q->h1('Hello World'),
+              $q->end_html;
+        
+        $stdout = $c->stdout;
+        
+        # enviroment and descriptors will automatically be restored when $c is destructed.
+    }
+    
+    $stdout->seek( 0, 0 );
+    
+    while ( my $line = $stdout->getline ) {
+        print $line;
+    }
+    
 =head1 DESCRIPTION
 
 =head1 METHODS
@@ -136,6 +162,8 @@ HTTP::Request::AsCGI - Create a CGI enviroment from a HTTP::Request
 =over 4 
 
 =item new
+
+=item enviroment
 
 =item setup
 

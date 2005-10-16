@@ -8,7 +8,7 @@ WriteMakefile(
     PREREQ_PM    => {
         Carp             => 0,
         Class::Accessor  => 0,
-        File::Temp       => 0.14,
-        IO::Handle       => 0
+        HTTP::Request    => 0,
+        IO::File         => 0
     }
 );
