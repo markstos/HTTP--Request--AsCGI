@@ -28,7 +28,7 @@ sub new {
         GATEWAY_INTERFACE => 'CGI/1.1',
         HTTP_HOST         => $request->uri->host_port,
         QUERY_STRING      => $request->uri->query || '',
-        SCRIPT_NAME       => $request->uri->path || '/',
+        SCRIPT_NAME       => '/',
         SERVER_NAME       => $request->uri->host,
         SERVER_PORT       => $request->uri->port,
         SERVER_PROTOCOL   => $request->protocol || 'HTTP/1.1',
