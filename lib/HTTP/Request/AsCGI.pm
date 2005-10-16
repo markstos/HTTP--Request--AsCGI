@@ -67,7 +67,8 @@ sub setup {
 
     open( STDIN, '<&=', $self->stdin->fileno )
       or croak("Can't open stdin: $!");
-      
+
+    binmode( $self->stdin, ':raw' );
     binmode( STDIN, ':raw' );
 
     if ( $self->request->content_length ) {
@@ -85,7 +86,8 @@ sub setup {
 
         open( STDOUT, '>&=', $self->stdout->fileno )
           or croak("Can't open stdout: $!");
-          
+
+        binmode( $self->stdout, ':raw' );
         binmode( STDOUT, ':raw' );
     }
 
@@ -95,7 +97,8 @@ sub setup {
 
         open( STDERR, '>&=', $self->stderr->fileno )
           or croak("Can't open stderr: $!");
-        
+
+        binmode( $self->stderr, ':raw' );
         binmode( STDERR, ':raw' );
     }
 
