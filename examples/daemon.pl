@@ -25,6 +25,8 @@ while ( my $client = $server->accept ) {
 
     while ( my $request = $client->get_request ) {
 
+        CGI::initialize_globals();
+
         my $c = HTTP::Request::AsCGI->new( $request, %e )->setup;
         my $q = CGI->new;
 

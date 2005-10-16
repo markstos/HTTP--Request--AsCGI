@@ -44,7 +44,7 @@ sub new {
     foreach my $field ( $request->headers->header_field_names ) {
 
         my $key = uc($field);
-        $key =~ tr/_/-/;
+        $key =~ tr/-/_/;
         $key = 'HTTP_' . $key unless $field =~ /^Content-(Length|Type)$/;
 
         unless ( exists $self->{enviroment}->{$key} ) {
