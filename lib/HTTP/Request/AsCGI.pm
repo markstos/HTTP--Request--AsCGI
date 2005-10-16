@@ -75,10 +75,10 @@ sub setup {
 
     if ( $self->request->content_length ) {
 
-        $self->stdin->write( $self->request->content )
-          or croak("Can't write content: $!");
+        $self->stdin->syswrite( $self->request->content )
+          or croak("Can't write content to stdin: $!");
 
-        seek( $self->stdin, 0, 0 )
+        $self->stdin->sysseek( 0, SEEK_SET )
           or croak("Can't seek stdin: $!");
     }
 
@@ -109,7 +109,16 @@ sub restore {
 
     open( STDERR, '>&', $self->{restore}->{stderr} )
       or croak("Can't restore stderr: $!");
-      
+
+    $self->stdin->sysseek( 0, SEEK_SET )
+      or croak("Can't seek stdin: $!");
+
+    $self->stdout->sysseek( 0, SEEK_SET )
+      or croak("Can't seek stdout: $!");
+
+    $self->stderr->sysseek( 0, SEEK_SET )
+      or croak("Can't seek stderr: $!");
+
     $self->{restored}++;
 }
 
@@ -148,8 +157,6 @@ HTTP::Request::AsCGI - Setup a CGI enviroment from a HTTP::Request
         
         # enviroment and descriptors will automatically be restored when $c is destructed.
     }
-    
-    $stdout->seek( 0, 0 );
     
     while ( my $line = $stdout->getline ) {
         print $line;
