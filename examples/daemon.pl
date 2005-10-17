@@ -33,16 +33,31 @@ while ( my $client = $server->accept ) {
         my $c = HTTP::Request::AsCGI->new( $request, %e )->setup;
         my $q = CGI->new;
 
-        print $q->header,
-              $q->start_html('Hello World'),
+        print $q->header( -charset => 'UTF-8' ),
+              $q->start_html( 
+                  -title    => 'Hello World',
+                  -encoding => 'UTF-8'
+              ),
               $q->h1('Hello World'),
+              $q->start_form,
+              $q->table(
+                  $q->Tr( [
+                      $q->td( [ 'Name',  $q->textfield( -name => 'name'  ) ] ),
+                      $q->td( [ 'Email', $q->textfield( -name => 'email' ) ] ),
+                      $q->td( [ 'Phone', $q->textfield( -name => 'phone' ) ] ),
+                      $q->td( [ 'File',  $q->filefield( -name => 'file'  ) ] )
+                  ] )
+              ),
+              $q->submit,
+              $q->end_form,
+              $q->h2('Params'),
+              $q->Dump,
               $q->end_html;
 
-        $c->restore;
+        my $response = $c->restore->response;
 
-        my $response = $c->response;
-
-        # to prevent blocking problems in single threaded daemon.
+        # tell client to close socket to prevent blocking problems
+        # in this single threaded daemon.
         $response->header( Connection => 'close' );
 
         $client->send_response($response);
