@@ -21,8 +21,7 @@ sub new {
         restored => 0,
         setuped  => 0,
         stdin    => IO::File->new_tmpfile,
-        stdout   => IO::File->new_tmpfile,
-        stderr   => IO::File->new_tmpfile
+        stdout   => IO::File->new_tmpfile
     };
 
     $self->{enviroment} = {
@@ -68,8 +67,8 @@ sub setup {
     open( STDIN, '<&=', $self->stdin->fileno )
       or croak("Can't open stdin: $!");
 
-    binmode( $self->stdin, ':raw' );
-    binmode( STDIN, ':raw' );
+    binmode( $self->stdin );
+    binmode( STDIN );
 
     if ( $self->request->content_length ) {
 
@@ -87,8 +86,8 @@ sub setup {
         open( STDOUT, '>&=', $self->stdout->fileno )
           or croak("Can't open stdout: $!");
 
-        binmode( $self->stdout, ':raw' );
-        binmode( STDOUT, ':raw' );
+        binmode( $self->stdout );
+        binmode( STDOUT);
     }
 
     if ( $self->stderr ) {
@@ -98,8 +97,8 @@ sub setup {
         open( STDERR, '>&=', $self->stderr->fileno )
           or croak("Can't open stderr: $!");
 
-        binmode( $self->stderr, ':raw' );
-        binmode( STDERR, ':raw' );
+        binmode( $self->stderr );
+        binmode( STDERR );
     }
 
     {
@@ -267,6 +266,10 @@ HTTP::Request::AsCGI - Setup a CGI enviroment from a HTTP::Request
 =back
 
 =head1 BUGS
+
+=item THANKS TO
+
+Thomas L. Shinnick for his valuable win32 testing.
 
 =head1 AUTHOR
 

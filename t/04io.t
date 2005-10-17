@@ -5,6 +5,7 @@ use Test::More tests => 3;
 use strict;
 use warnings;
 
+use IO::File;
 use HTTP::Request;
 use HTTP::Request::AsCGI;
 
@@ -13,7 +14,9 @@ $r->content('STDIN');
 $r->content_length(5);
 $r->content_type('text/plain');
 
-my $c = HTTP::Request::AsCGI->new($r)->setup;
+my $c = HTTP::Request::AsCGI->new($r);
+$c->stderr(IO::File->new_tmpfile);
+$c->setup;
 
 print STDOUT 'STDOUT';
 print STDERR 'STDERR';

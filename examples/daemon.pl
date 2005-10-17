@@ -41,7 +41,7 @@ while ( my $client = $server->accept ) {
         $c->restore;
 
         my $response = $c->response;
-        
+
         # to prevent blocking problems in single threaded daemon.
         $response->header( Connection => 'close' );
 

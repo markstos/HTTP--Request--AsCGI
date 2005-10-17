@@ -12,7 +12,6 @@ use HTTP::Request::AsCGI;
 my $r = HTTP::Request->new( GET => 'http://www.host.com/my/path/?a=1&b=2' );
 my $c = HTTP::Request::AsCGI->new($r);
 $c->stdout(undef);
-$c->stderr(undef);
 
 $c->setup;
 
