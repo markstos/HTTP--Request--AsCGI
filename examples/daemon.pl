@@ -8,10 +8,12 @@ use HTTP::Daemon;
 use HTTP::Request;
 use HTTP::Request::AsCGI;
 use HTTP::Response;
+use URI;
 
 $SIG{'PIPE'} = 'IGNORE';
 
-my $server = HTTP::Daemon->new( LocalPort => 3000, ReuseAddr => 1 ) || die;
+my $server = HTTP::Daemon->new( LocalPort => 3000, ReuseAddr => 1 )
+  or die( "Can't create daemon: $!" );
 
 print "Please contact me at: <URL:", $server->url, ">\n";
 
@@ -25,10 +27,9 @@ while ( my $client = $server->accept ) {
 
     while ( my $request = $client->get_request ) {
 
-        CGI::initialize_globals();
-
-        $request->uri->scheme('http');
-        $request->uri->host_port( $request->header('Host') || URI->new($server)->host_port );
+        unless ( $request->uri->host ) {
+            $request->uri( URI->new_abs( $request->uri, $server->url ) );
+        }
 
         my $c = HTTP::Request::AsCGI->new( $request, %e )->setup;
         my $q = CGI->new;
@@ -50,8 +51,14 @@ while ( my $client = $server->accept ) {
               ),
               $q->submit,
               $q->end_form,
-              $q->h2('Params'),
+              $q->h2('Parameters'),
               $q->Dump,
+              $q->h2('Enviroment'),
+              $q->table(
+                  $q->Tr( [
+                      map{ $q->td( [ $_, $ENV{$_} ] ) } sort keys %ENV
+                  ] )
+              ),
               $q->end_html;
 
         my $response = $c->restore->response;

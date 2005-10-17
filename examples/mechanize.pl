@@ -6,9 +6,9 @@ use strict;
 use warnings;
 use base 'Test::WWW::Mechanize';
 
-use CGI;
 use HTTP::Request;
 use HTTP::Request::AsCGI;
+use HTTP::Response;
 
 sub cgi {
     my $self = shift;
@@ -26,8 +26,19 @@ sub _make_request {
     $self->cookie_jar->add_cookie_header($request) if $self->cookie_jar;
 
     my $c = HTTP::Request::AsCGI->new($request)->setup;
-    $self->cgi->();
-    my $response = $c->restore->response;
+
+    eval { $self->cgi->() };
+
+    my $response;
+
+    if ( $@ ) {
+        $response = HTTP::Response->new(500);
+        $response->date( time() );
+        $response->content( $response->error_as_HTML );
+    }
+    else {
+        $response = $c->restore->response;   
+    }
 
     $response->header( 'Content-Base', $request->uri );
     $response->request($request);
@@ -40,19 +51,18 @@ package main;
 use strict;
 use warnings;
 
+use CGI;
 use Test::More tests => 3;
 
 my $mech = Test::WWW::Mechanize::CGI->new;
 $mech->cgi( sub {
 
-    CGI::initialize_globals();
-
     my $q = CGI->new;
 
-    print $q->header, 
-          $q->start_html('Hello World'), 
+    print $q->header,
+          $q->start_html('Hello World'),
           $q->h1('Hello World'),
-          $q->end_html;   
+          $q->end_html;
 });
 
 $mech->get_ok('http://localhost/');

@@ -6,6 +6,7 @@ use bytes;
 use base 'Class::Accessor::Fast';
 
 use Carp;
+use IO::Handle;
 use IO::File;
 
 __PACKAGE__->mk_accessors(qw[ enviroment request stdin stdout stderr ]);
@@ -24,20 +25,28 @@ sub new {
         stdout   => IO::File->new_tmpfile
     };
 
+    my $host = $request->header('Host');
+    my $uri  = $request->uri->clone;
+    $uri->scheme('http')    unless $uri->scheme;
+    $uri->host('localhost') unless $uri->host;
+    $uri->port(80)          unless $uri->port;
+    $uri->host_port($host)  unless !$host || ( $host eq $uri->host_port );
+
     $self->{enviroment} = {
         GATEWAY_INTERFACE => 'CGI/1.1',
-        HTTP_HOST         => $request->uri->host_port,
-        PATH_INFO         => $request->uri->path,
-        QUERY_STRING      => $request->uri->query || '',
+        HTTP_HOST         => $uri->host_port,
+        HTTPS             => ( $uri->scheme eq 'https' ) ? 'ON' : 'OFF',  # not in RFC 3875
+        PATH_INFO         => $uri->path,
+        QUERY_STRING      => $uri->query || '',
         SCRIPT_NAME       => '/',
-        SERVER_NAME       => $request->uri->host,
-        SERVER_PORT       => $request->uri->port,
+        SERVER_NAME       => $uri->host,
+        SERVER_PORT       => $uri->port,
         SERVER_PROTOCOL   => $request->protocol || 'HTTP/1.1',
-        SERVER_SOFTWARE   => __PACKAGE__ . "/" . $VERSION,
+        SERVER_SOFTWARE   => "HTTP-Request-AsCGI/$VERSION",
         REMOTE_ADDR       => '127.0.0.1',
         REMOTE_HOST       => 'localhost',
-        REMOTE_PORT       => int( rand(64000) + 1000 ),        # not in RFC 3875
-        REQUEST_URI       => $request->uri->path || '/',       # not in RFC 3875
+        REMOTE_PORT       => int( rand(64000) + 1000 ),                   # not in RFC 3875
+        REQUEST_URI       => $uri->path_query || '/',                     # not in RFC 3875
         REQUEST_METHOD    => $request->method,
         @_
     };
@@ -72,14 +81,15 @@ sub setup {
 
     if ( $self->request->content_length ) {
 
-        $self->stdin->syswrite( $self->request->content )
+        syswrite( $self->stdin, $self->request->content )
           or croak("Can't write request content to stdin handle: $!");
 
-        $self->stdin->sysseek( 0, SEEK_SET )
+        sysseek( $self->stdin, 0, SEEK_SET )
           or croak("Can't seek stdin handle: $!");
     }
 
     if ( $self->stdout ) {
+
         open( $self->{restore}->{stdout}, '>&', STDOUT->fileno )
           or croak("Can't dup stdout: $!");
 
@@ -91,6 +101,7 @@ sub setup {
     }
 
     if ( $self->stderr ) {
+
         open( $self->{restore}->{stderr}, '>&', STDERR->fileno )
           or croak("Can't dup stderr: $!");
 
@@ -105,6 +116,10 @@ sub setup {
         no warnings 'uninitialized';
         %ENV = %{ $self->enviroment };
     }
+    
+    if ( $INC{'CGI.pm'} ) {
+        CGI::initialize_globals();
+    }    
 
     $self->{setuped}++;
 
@@ -120,13 +135,13 @@ sub response {
 
     require HTTP::Response;
 
-    my $message  = undef;
-    my $position = $self->stdin->tell;
+    my $message = undef;
+    my $stdout  = $self->stdout;
 
-    $self->stdout->sysseek( 0, SEEK_SET )
-      or croak("Can't seek stdin handle: $!");
+    seek( $self->stdout, 0, SEEK_SET )
+      or croak("Can't seek stdout handle: $!");
 
-    while ( my $line = $self->stdout->getline ) {
+    while ( my $line = <$stdout> ) {
         $message .= $line;
         last if $line =~ /^\x0d?\x0a$/;
     }
@@ -161,9 +176,6 @@ sub response {
         $response->content_length($length) unless $response->content_length;
     }
 
-    $self->stdout->sysseek( $position, SEEK_SET )
-      or croak("Can't seek stdin handle: $!");
-
     return $response;
 }
 
@@ -175,22 +187,30 @@ sub restore {
     open( STDIN, '>&', $self->{restore}->{stdin} )
       or croak("Can't restore stdin: $!");
 
-    $self->stdin->sysseek( 0, SEEK_SET )
+    sysseek( $self->stdin, 0, SEEK_SET )
       or croak("Can't seek stdin: $!");
 
     if ( $self->{restore}->{stdout} ) {
+
+        STDOUT->flush
+          or croak("Can't flush stdout: $!");
+
         open( STDOUT, '>&', $self->{restore}->{stdout} )
           or croak("Can't restore stdout: $!");
 
-        $self->stdout->sysseek( 0, SEEK_SET )
+        sysseek( $self->stdout, 0, SEEK_SET )
           or croak("Can't seek stdout: $!");
     }
 
     if ( $self->{restore}->{stderr} ) {
+
+        STDERR->flush
+          or croak("Can't flush stderr: $!");
+
         open( STDERR, '>&', $self->{restore}->{stderr} )
           or croak("Can't restore stderr: $!");
 
-        $self->stderr->sysseek( 0, SEEK_SET )
+        sysseek( $self->stderr, 0, SEEK_SET )
           or croak("Can't seek stderr: $!");
     }
 

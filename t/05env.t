@@ -1,6 +1,6 @@
 #!perl
 
-use Test::More tests => 9;
+use Test::More tests => 10;
 
 use strict;
 use warnings;
@@ -9,7 +9,7 @@ use IO::File;
 use HTTP::Request;
 use HTTP::Request::AsCGI;
 
-my $r = HTTP::Request->new( GET => 'http://www.host.com/my/path/?a=1&b=2' );
+my $r = HTTP::Request->new( GET => 'http://www.host.com/my/path/?a=1&b=2', [ 'X-Test' => 'Test' ] );
 my $c = HTTP::Request::AsCGI->new($r);
 $c->stdout(undef);
 
@@ -17,6 +17,7 @@ $c->setup;
 
 is( $ENV{GATEWAY_INTERFACE}, 'CGI/1.1', 'GATEWAY_INTERFACE' );
 is( $ENV{HTTP_HOST}, 'www.host.com:80', 'HTTP_HOST' );
+is( $ENV{HTTP_X_TEST}, 'Test', 'HTTP_X_TEST' );
 is( $ENV{PATH_INFO}, '/my/path/', 'PATH_INFO' );
 is( $ENV{QUERY_STRING}, 'a=1&b=2', 'QUERY_STRING' );
 is( $ENV{SCRIPT_NAME}, '/', 'SCRIPT_NAME' );
