@@ -135,28 +135,47 @@ sub response {
 
     require HTTP::Response;
 
-    my $message = undef;
-    my $stdout  = $self->stdout;
-
     seek( $self->stdout, 0, SEEK_SET )
       or croak("Can't seek stdout handle: $!");
 
-    while ( my $line = <$stdout> ) {
+    my $message;
+    while ( my $line = $self->stdout->getline ) {
         $message .= $line;
-        last if $line =~ /^\x0d?\x0a$/;
+        last if $message =~ /\x0d?\x0a\x0d?\x0a$/;
     }
 
     unless ( $message =~ /^HTTP/ ) {
-        $message = "HTTP/1.1 200\x0d\x0a" . $message;
+        $message = "HTTP/1.1 200 OK\x0d\x0a" . $message;
     }
 
-    my $response = HTTP::Response->parse($message);
+    my $response = HTTP::Response->new;
+    my @headers  = split( /\x0d?\x0a/, $message );
+    my $status   = shift(@headers);
+
+    unless ( $status =~ s/^(HTTP\/\d\.\d) (\d{3}) (.*)$// ) {
+        croak( "Invalid Status-Line: '$status'" );
+    }
+
+    $response->protocol($1);
+    $response->code($2);
+    $response->message($3);
+
+    my $token = qr/[^][\x00-\x1f\x7f()<>@,;:\\"\/?={} \t]+/;
+
+    foreach my $header (@headers) {
+
+        unless( $header =~ s/^($token):[\t ]*// ) {
+            croak( "Invalid header field name : '$header'" );
+        }
+
+        $response->push_header( $1 => $header );
+    }    
 
     if ( my $code = $response->header('Status') ) {
         $response->code($code);
+        $response->message( HTTP::Status::status_message($code) );
     }
 
-    $response->protocol( $self->request->protocol );
     $response->headers->date( time() );
 
     if ($callback) {
@@ -173,7 +192,10 @@ sub response {
             $length += length($buffer);
             $response->add_content($buffer);
         }
-        $response->content_length($length) unless $response->content_length;
+        
+        if ( $length && !$response->content_length ) {
+            $response->content_length($length);
+        }
     }
 
     return $response;
