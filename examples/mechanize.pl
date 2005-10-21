@@ -23,7 +23,9 @@ sub cgi {
 sub _make_request {
     my ( $self, $request ) = @_;
 
-    $self->cookie_jar->add_cookie_header($request) if $self->cookie_jar;
+    if ( $self->cookie_jar ) {
+        $self->cookie_jar->add_cookie_header($request);
+    }
 
     my $c = HTTP::Request::AsCGI->new($request)->setup;
 
@@ -37,12 +39,16 @@ sub _make_request {
         $response->content( $response->error_as_HTML );
     }
     else {
-        $response = $c->restore->response;   
+        $response = $c->restore->response;
     }
 
     $response->header( 'Content-Base', $request->uri );
     $response->request($request);
-    $self->cookie_jar->extract_cookies($response) if $self->cookie_jar;
+
+    if ( $self->cookie_jar ) {
+        $self->cookie_jar->extract_cookies($response);
+    }
+
     return $response;
 }
 

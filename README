@@ -1,0 +1,81 @@
+NAME
+    HTTP::Request::AsCGI - Setup a CGI enviroment from a HTTP::Request
+
+SYNOPSIS
+        use CGI;
+        use HTTP::Request;
+        use HTTP::Request::AsCGI;
+    
+        my $request = HTTP::Request->new( GET => 'http://www.host.com/' );
+        my $stdout;
+    
+        {
+            my $c = HTTP::Request::AsCGI->new($request)->setup;
+            my $q = CGI->new;
+        
+            print $q->header,
+                  $q->start_html('Hello World'),
+                  $q->h1('Hello World'),
+                  $q->end_html;
+        
+            $stdout = $c->stdout;
+        
+            # enviroment and descriptors will automatically be restored 
+            # when $c is destructed.
+        }
+    
+        while ( my $line = $stdout->getline ) {
+            print $line;
+        }
+    
+DESCRIPTION
+    Provides a convinient way of setting up an CGI enviroment from a
+    HTTP::Request.
+
+METHODS
+    new ( $request [, key => value ] )
+        Contructor, first argument must be a instance of HTTP::Request
+        followed by optional pairs of environment keys and values.
+
+    enviroment
+        Returns a hashref containing the environment that will be used in
+        setup. Changing the hashref after setup has been called will have no
+        effect.
+
+    setup
+        Setups the environment and descriptors.
+
+    restore
+        Restores the enviroment and descriptors. Can only be called after
+        setup.
+
+    request
+        Returns the request given to constructor.
+
+    response
+        Returns a HTTP::Response. Can only be called after restore.
+
+    stdin
+        Accessor for handle that will be used for STDIN, must be a real
+        seekable handle with an file descriptor. Defaults to a tempoary
+        IO::File instance.
+
+    stdout
+        Accessor for handle that will be used for STDOUT, must be a real
+        seekable handle with an file descriptor. Defaults to a tempoary
+        IO::File instance.
+
+    stderr
+        Accessor for handle that will be used for STDERR, must be a real
+        seekable handle with an file descriptor.
+
+THANKS TO
+    Thomas L. Shinnick for his valuable win32 testing.
+
+AUTHOR
+    Christian Hansen, "ch@ngmedia.com"
+
+LICENSE
+    This library is free software. You can redistribute it and/or modify it
+    under the same terms as perl itself.
+

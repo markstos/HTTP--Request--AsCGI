@@ -16,6 +16,10 @@ our $VERSION = 0.1;
 sub new {
     my $class   = shift;
     my $request = shift;
+    
+    unless ( @_ % 2 == 0 && eval { $request->isa('HTTP::Request') } ) {
+        croak(qq/usage: $class->new( \$request [, key => value] )/);
+    }
 
     my $self = {
         request  => $request,
@@ -274,7 +278,8 @@ HTTP::Request::AsCGI - Setup a CGI enviroment from a HTTP::Request
         
         $stdout = $c->stdout;
         
-        # enviroment and descriptors will automatically be restored when $c is destructed.
+        # enviroment and descriptors will automatically be restored 
+        # when $c is destructed.
     }
     
     while ( my $line = $stdout->getline ) {
@@ -283,33 +288,56 @@ HTTP::Request::AsCGI - Setup a CGI enviroment from a HTTP::Request
     
 =head1 DESCRIPTION
 
+Provides a convinient way of setting up an CGI enviroment from a HTTP::Request.
+
 =head1 METHODS
 
 =over 4 
 
-=item new
+=item new ( $request [, key => value ] )
+
+Contructor, first argument must be a instance of HTTP::Request
+followed by optional pairs of environment keys and values.
 
 =item enviroment
 
+Returns a hashref containing the environment that will be used in setup. 
+Changing the hashref after setup has been called will have no effect.
+
 =item setup
+
+Setups the environment and descriptors.
 
 =item restore
 
+Restores the enviroment and descriptors. Can only be called after setup.
+
 =item request
+
+Returns the request given to constructor.
 
 =item response
 
+Returns a HTTP::Response. Can only be called after restore.
+
 =item stdin
+
+Accessor for handle that will be used for STDIN, must be a real seekable
+handle with an file descriptor. Defaults to a tempoary IO::File instance.
 
 =item stdout
 
+Accessor for handle that will be used for STDOUT, must be a real seekable
+handle with an file descriptor. Defaults to a tempoary IO::File instance.
+
 =item stderr
+
+Accessor for handle that will be used for STDERR, must be a real seekable
+handle with an file descriptor.
 
 =back
 
-=head1 BUGS
-
-=item THANKS TO
+=head1 THANKS TO
 
 Thomas L. Shinnick for his valuable win32 testing.
 

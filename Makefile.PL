@@ -9,6 +9,7 @@ WriteMakefile(
         Carp             => 0,
         Class::Accessor  => 0,
         HTTP::Request    => 0,
+        HTTP::Response   => 0,
         IO::File         => 0
     }
 );
