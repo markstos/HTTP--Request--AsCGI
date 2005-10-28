@@ -11,7 +11,7 @@ use IO::File;
 
 __PACKAGE__->mk_accessors(qw[ enviroment request stdin stdout stderr ]);
 
-our $VERSION = 0.1;
+our $VERSION = 0.2;
 
 sub new {
     my $class   = shift;
@@ -20,14 +20,11 @@ sub new {
     unless ( @_ % 2 == 0 && eval { $request->isa('HTTP::Request') } ) {
         croak(qq/usage: $class->new( \$request [, key => value] )/);
     }
-
-    my $self = {
-        request  => $request,
-        restored => 0,
-        setuped  => 0,
-        stdin    => IO::File->new_tmpfile,
-        stdout   => IO::File->new_tmpfile
-    };
+    
+    my $self = $class->SUPER::new( { restored => 0, setuped => 0 } );
+    $self->request($request);
+    $self->stdin( IO::File->new_tmpfile );
+    $self->stdout( IO::File->new_tmpfile );
 
     my $host = $request->header('Host');
     my $uri  = $request->uri->clone;
@@ -35,8 +32,10 @@ sub new {
     $uri->host('localhost') unless $uri->host;
     $uri->port(80)          unless $uri->port;
     $uri->host_port($host)  unless !$host || ( $host eq $uri->host_port );
+    
+    $uri = $uri->canonical;
 
-    $self->{enviroment} = {
+    my $enviroment = {
         GATEWAY_INTERFACE => 'CGI/1.1',
         HTTP_HOST         => $uri->host_port,
         HTTPS             => ( $uri->scheme eq 'https' ) ? 'ON' : 'OFF',  # not in RFC 3875
@@ -50,23 +49,30 @@ sub new {
         REMOTE_ADDR       => '127.0.0.1',
         REMOTE_HOST       => 'localhost',
         REMOTE_PORT       => int( rand(64000) + 1000 ),                   # not in RFC 3875
-        REQUEST_URI       => $uri->path_query || '/',                     # not in RFC 3875
+        REQUEST_URI       => $uri->path_query,                            # not in RFC 3875
         REQUEST_METHOD    => $request->method,
         @_
     };
 
     foreach my $field ( $request->headers->header_field_names ) {
 
-        my $key = uc($field);
+        my $key = uc("HTTP_$field");
         $key =~ tr/-/_/;
-        $key = 'HTTP_' . $key unless $field =~ /^Content-(Length|Type)$/;
+        $key =~ s/^HTTP_// if $field =~ /^Content-(Length|Type)$/;
 
-        unless ( exists $self->{enviroment}->{$key} ) {
-            $self->{enviroment}->{$key} = $request->headers->header($field);
+        unless ( exists $enviroment->{$key} ) {
+            $enviroment->{$key} = $request->headers->header($field);
         }
     }
 
-    return $class->SUPER::new($self);
+    unless ( $enviroment->{SCRIPT_NAME} eq '/' && $enviroment->{PATH_INFO} ) {
+        $enviroment->{PATH_INFO} =~ s/^\Q$enviroment->{SCRIPT_NAME}\E/\//;
+        $enviroment->{PATH_INFO} =~ s/^\/+/\//;
+    }
+
+    $self->enviroment($enviroment);
+
+    return $self;
 }
 
 sub setup {
@@ -74,14 +80,7 @@ sub setup {
 
     $self->{restore}->{enviroment} = {%ENV};
 
-    open( $self->{restore}->{stdin}, '>&', STDIN->fileno )
-      or croak("Can't dup stdin: $!");
-
-    open( STDIN, '<&=', $self->stdin->fileno )
-      or croak("Can't open stdin: $!");
-
     binmode( $self->stdin );
-    binmode( STDIN );
 
     if ( $self->request->content_length ) {
 
@@ -91,6 +90,14 @@ sub setup {
         sysseek( $self->stdin, 0, SEEK_SET )
           or croak("Can't seek stdin handle: $!");
     }
+
+    open( $self->{restore}->{stdin}, '>&', STDIN->fileno )
+      or croak("Can't dup stdin: $!");
+
+    open( STDIN, '<&=', $self->stdin->fileno )
+      or croak("Can't open stdin: $!");
+
+    binmode( STDIN );
 
     if ( $self->stdout ) {
 
@@ -297,7 +304,7 @@ Provides a convinient way of setting up an CGI enviroment from a HTTP::Request.
 =item new ( $request [, key => value ] )
 
 Contructor, first argument must be a instance of HTTP::Request
-followed by optional pairs of environment keys and values.
+followed by optional pairs of environment key and value.
 
 =item enviroment
 

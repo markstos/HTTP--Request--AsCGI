@@ -20,6 +20,16 @@ sub cgi {
     return $self->{cgi};
 }
 
+sub env {
+    my $self = shift;
+
+    if ( @_ ) {
+        $self->{env} = { @_ };
+    }
+
+    return %{ $self->{env} || {} };
+}
+
 sub _make_request {
     my ( $self, $request ) = @_;
 
@@ -27,7 +37,8 @@ sub _make_request {
         $self->cookie_jar->add_cookie_header($request);
     }
 
-    my $c = HTTP::Request::AsCGI->new($request)->setup;
+    my %e = $self->env;
+    my $c = HTTP::Request::AsCGI->new( $request, %e )->setup;
 
     eval { $self->cgi->() };
 
@@ -36,7 +47,9 @@ sub _make_request {
     if ( $@ ) {
         $response = HTTP::Response->new(500);
         $response->date( time() );
+        $response->header( 'X-Error' => $@ );
         $response->content( $response->error_as_HTML );
+        $response->content_type('text/html');
     }
     else {
         $response = $c->restore->response;
