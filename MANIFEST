@@ -1,6 +1,5 @@
 Changes
 examples/daemon.pl
-examples/mechanize.pl
 examples/synopsis.pl
 lib/HTTP/Request/AsCGI.pm
 Makefile.PL
