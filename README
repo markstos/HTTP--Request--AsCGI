@@ -35,7 +35,7 @@ DESCRIPTION
 METHODS
     new ( $request [, key => value ] )
         Contructor, first argument must be a instance of HTTP::Request
-        followed by optional pairs of environment keys and values.
+        followed by optional pairs of environment key and value.
 
     enviroment
         Returns a hashref containing the environment that will be used in
@@ -68,6 +68,11 @@ METHODS
     stderr
         Accessor for handle that will be used for STDERR, must be a real
         seekable handle with an file descriptor.
+
+SEE ALSO
+    examples directory in this distribution.
+    WWW::Mechanize::CGI
+    Test::WWW::Mechanize::CGI
 
 THANKS TO
     Thomas L. Shinnick for his valuable win32 testing.

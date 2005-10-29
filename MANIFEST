@@ -9,3 +9,5 @@ README
 t/01use.t
 t/04io.t
 t/05env.t
+t/06response.t
+t/07forking.t
