@@ -5,7 +5,6 @@ use Test::More tests => 10;
 use strict;
 use warnings;
 
-use IO::File;
 use HTTP::Request;
 use HTTP::Request::AsCGI;
 

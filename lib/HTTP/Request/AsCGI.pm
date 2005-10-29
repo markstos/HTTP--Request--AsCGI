@@ -140,9 +140,7 @@ sub setup {
 sub response {
     my ( $self, $callback ) = @_;
 
-    return undef unless $self->{setuped};
-    return undef unless $self->{restored};
-    return undef unless $self->{restore}->{stdout};
+    return undef unless $self->stdout;
 
     require HTTP::Response;
 
@@ -341,6 +339,18 @@ handle with an file descriptor. Defaults to a tempoary IO::File instance.
 
 Accessor for handle that will be used for STDERR, must be a real seekable
 handle with an file descriptor.
+
+=back
+
+=head1 SEE ALSO
+
+=over 4
+
+=item examples directory in this distribution.
+
+=item L<WWW::Mechanize::CGI>
+
+=item L<Test::WWW::Mechanize::CGI>
 
 =back
 
