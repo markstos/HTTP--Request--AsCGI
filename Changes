@@ -1,6 +1,6 @@
 This file documents the revision history for Perl extension HTTP::Request::AsCGI.
 
-0.2  2005-10-28 00:00:00 2005
+0.2  2005-10-31 00:55:00 2005
     - added test for response.
 
 0.1  2005-10-21 00:00:00 2005
