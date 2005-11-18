@@ -11,7 +11,7 @@ use IO::File;
 
 __PACKAGE__->mk_accessors(qw[ enviroment request stdin stdout stderr ]);
 
-our $VERSION = 0.2;
+our $VERSION = 0.3;
 
 sub new {
     my $class   = shift;
@@ -212,8 +212,11 @@ sub response {
 
 sub restore {
     my $self = shift;
-
-    %ENV = %{ $self->{restore}->{enviroment} };
+    
+    {
+        no warnings 'uninitialized';
+        %ENV = %{ $self->{restore}->{enviroment} };
+    }
 
     open( STDIN, '>&', $self->{restore}->{stdin} )
       or croak("Can't restore stdin: $!");
