@@ -1,10 +1,17 @@
 This file documents the revision history for Perl extension HTTP::Request::AsCGI.
 
-0.3  2005-11-18 00:00:00 2005
-    - silence uninitialized warnings when restoring %ENV
+0.4  2006-01-06 00:00:00 2005
+    - Fixed #15999 return a 500 response when message is empty, reported by Chris Dolan <cdolan@cpan.org>
+    - Fixed Status header bug
+    - Bumped HTTP::Response requirement to 1.53 and drop our own message parsing.
+
+0.3  2006-01-06 00:00:00 2005
+    - Silence uninitialized warnings when restoring %ENV
+    - Fixed dup and restore of STDIN.
 
 0.2  2005-10-31 00:55:00 2005
-    - added test for response.
+    - Added test for response.
 
 0.1  2005-10-21 00:00:00 2005
-    - first release.
+    - First release.
+

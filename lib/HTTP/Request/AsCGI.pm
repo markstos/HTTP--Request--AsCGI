@@ -6,21 +6,22 @@ use bytes;
 use base 'Class::Accessor::Fast';
 
 use Carp;
+use HTTP::Response;
 use IO::Handle;
 use IO::File;
 
 __PACKAGE__->mk_accessors(qw[ enviroment request stdin stdout stderr ]);
 
-our $VERSION = 0.3;
+our $VERSION = 0.4;
 
 sub new {
     my $class   = shift;
     my $request = shift;
-    
+
     unless ( @_ % 2 == 0 && eval { $request->isa('HTTP::Request') } ) {
         croak(qq/usage: $class->new( \$request [, key => value] )/);
     }
-    
+
     my $self = $class->SUPER::new( { restored => 0, setuped => 0 } );
     $self->request($request);
     $self->stdin( IO::File->new_tmpfile );
@@ -32,7 +33,7 @@ sub new {
     $uri->host('localhost') unless $uri->host;
     $uri->port(80)          unless $uri->port;
     $uri->host_port($host)  unless !$host || ( $host eq $uri->host_port );
-    
+
     $uri = $uri->canonical;
 
     my $enviroment = {
@@ -91,7 +92,7 @@ sub setup {
           or croak("Can't seek stdin handle: $!");
     }
 
-    open( $self->{restore}->{stdin}, '>&', STDIN->fileno )
+    open( $self->{restore}->{stdin}, '<&', STDIN->fileno )
       or croak("Can't dup stdin: $!");
 
     open( STDIN, '<&=', $self->stdin->fileno )
@@ -127,10 +128,10 @@ sub setup {
         no warnings 'uninitialized';
         %ENV = %{ $self->enviroment };
     }
-    
+
     if ( $INC{'CGI.pm'} ) {
         CGI::initialize_globals();
-    }    
+    }
 
     $self->{setuped}++;
 
@@ -142,66 +143,72 @@ sub response {
 
     return undef unless $self->stdout;
 
-    require HTTP::Response;
-
     seek( $self->stdout, 0, SEEK_SET )
       or croak("Can't seek stdout handle: $!");
 
-    my $message;
+    my $headers;
     while ( my $line = $self->stdout->getline ) {
-        $message .= $line;
-        last if $message =~ /\x0d?\x0a\x0d?\x0a$/;
+        $headers .= $line;
+        last if $headers =~ /\x0d?\x0a\x0d?\x0a$/;
     }
 
-    unless ( $message =~ /^HTTP/ ) {
-        $message = "HTTP/1.1 200 OK\x0d\x0a" . $message;
+    unless ( defined $headers ) {
+        $headers = "HTTP/1.1 500 Internal Server Error\x0d\x0a";
     }
 
-    my $response = HTTP::Response->new;
-    my @headers  = split( /\x0d?\x0a/, $message );
-    my $status   = shift(@headers);
-
-    unless ( $status =~ s/^(HTTP\/\d\.\d) (\d{3}) (.*)$// ) {
-        croak( "Invalid Status-Line: '$status'" );
+    unless ( $headers =~ /^HTTP/ ) {
+        $headers = "HTTP/1.1 200 OK\x0d\x0a" . $headers;
     }
 
-    $response->protocol($1);
-    $response->code($2);
-    $response->message($3);
+    my $response = HTTP::Response->parse($headers);
+    $response->date( time() ) unless $response->date;
 
-    my $token = qr/[^][\x00-\x1f\x7f()<>@,;:\\"\/?={} \t]+/;
+    my $message = $response->message;
+    my $status  = $response->header('Status');
 
-    foreach my $header (@headers) {
+    if ( $message && $message =~ /^(.+)\x0d$/ ) {
+        $response->message($1);
+    }
 
-        unless( $header =~ s/^($token):[\t ]*// ) {
-            croak( "Invalid header field name : '$header'" );
-        }
+    if ( $status && $status =~ /^(\d\d\d)\s?(.+)?$/ ) {
 
-        $response->push_header( $1 => $header );
-    }    
+        my $code    = $1;
+        my $message = $2 || HTTP::Status::status_message($code);
 
-    if ( my $code = $response->header('Status') ) {
         $response->code($code);
-        $response->message( HTTP::Status::status_message($code) );
+        $response->message($message);
     }
 
-    $response->headers->date( time() );
+    if ( $response->code == 500 && !$response->content ) {
+
+        $response->content( $response->error_as_HTML );
+        $response->content_type('text/html');
+
+        return $response;
+    }
 
     if ($callback) {
+
+        my $handle = $self->stdout;
+
         $response->content( sub {
-            if ( $self->stdout->read( my $buffer, 4096 ) ) {
+
+            if ( $handle->read( my $buffer, 4096 ) ) {
                 return $buffer;
             }
+
             return undef;
         });
     }
     else {
+
         my $length = 0;
+
         while ( $self->stdout->read( my $buffer, 4096 ) ) {
             $length += length($buffer);
             $response->add_content($buffer);
         }
-        
+
         if ( $length && !$response->content_length ) {
             $response->content_length($length);
         }
@@ -212,13 +219,13 @@ sub response {
 
 sub restore {
     my $self = shift;
-    
+
     {
         no warnings 'uninitialized';
         %ENV = %{ $self->{restore}->{enviroment} };
     }
 
-    open( STDIN, '>&', $self->{restore}->{stdin} )
+    open( STDIN, '<&', $self->{restore}->{stdin} )
       or croak("Can't restore stdin: $!");
 
     sysseek( $self->stdin, 0, SEEK_SET )

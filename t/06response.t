@@ -1,6 +1,6 @@
 #!perl
 
-use Test::More tests => 8;
+use Test::More tests => 9;
 
 use strict;
 use warnings;
@@ -17,9 +17,9 @@ my $response;
 
     $c->setup;
     
-    print "HTTP/1.0 200 OK\n";
     print "Content-Type: text/plain\n";
-    print "Status: 200\n";
+    print "Status: 200 Yay\n";
+    print "Date: Thu, 19 Jan 2006 14:08:18 GMT\n";
     print "X-Field: 1\n";
     print "X-Field: 2\n";
     print "\n";
@@ -30,9 +30,10 @@ my $response;
 
 isa_ok( $response, 'HTTP::Response' );
 is( $response->code, 200, 'Response Code' );
-is( $response->message, 'OK', 'Response Message' );
-is( $response->protocol, 'HTTP/1.0', 'Response Protocol' );
+is( $response->message, 'Yay', 'Response Message' );
+is( $response->protocol, 'HTTP/1.1', 'Response Protocol' );
 is( $response->content, 'Hello!', 'Response Content' );
 is( $response->content_length, 6, 'Response Content-Length' );
 is( $response->content_type, 'text/plain', 'Response Content-Type' );
+is( $response->header('Date'), 'Thu, 19 Jan 2006 14:08:18 GMT', 'Response Date' );
 is_deeply( [ $response->header('X-Field') ], [ 1, 2 ], 'Response Header X-Field' );
