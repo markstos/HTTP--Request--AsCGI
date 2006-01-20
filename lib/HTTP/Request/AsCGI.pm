@@ -12,7 +12,7 @@ use IO::File;
 
 __PACKAGE__->mk_accessors(qw[ enviroment request stdin stdout stderr ]);
 
-our $VERSION = 0.4;
+our $VERSION = 0.5;
 
 sub new {
     my $class   = shift;
@@ -151,7 +151,7 @@ sub response {
         $headers .= $line;
         last if $headers =~ /\x0d?\x0a\x0d?\x0a$/;
     }
-
+    
     unless ( defined $headers ) {
         $headers = "HTTP/1.1 500 Internal Server Error\x0d\x0a";
     }
@@ -178,8 +178,10 @@ sub response {
         $response->code($code);
         $response->message($message);
     }
+    
+    my $length = ( stat( $self->stdout ) )[7] - tell( $self->stdout );
 
-    if ( $response->code == 500 && !$response->content ) {
+    if ( $response->code == 500 && !$length ) {
 
         $response->content( $response->error_as_HTML );
         $response->content_type('text/html');

@@ -1,6 +1,9 @@
 This file documents the revision history for Perl extension HTTP::Request::AsCGI.
 
-0.4  2006-01-06 00:00:00 2005
+0.5  2006-01-20 00:00:00 2005
+    - Fixed bug where content was overridden on 500 responses.
+
+0.4  2006-01-19 00:00:00 2005
     - Fixed #15999 return a 500 response when message is empty, reported by Chris Dolan <cdolan@cpan.org>
     - Fixed Status header bug
     - Bumped HTTP::Response requirement to 1.53 and drop our own message parsing.

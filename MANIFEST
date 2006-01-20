@@ -4,10 +4,11 @@ examples/synopsis.pl
 lib/HTTP/Request/AsCGI.pm
 Makefile.PL
 MANIFEST			This list of files
-META.yml			Module meta-data (added by MakeMaker)
+META.yml
 README
 t/01use.t
 t/04io.t
 t/05env.t
 t/06response.t
 t/07forking.t
+t/08error.t
