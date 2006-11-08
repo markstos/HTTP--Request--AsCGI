@@ -1,5 +1,9 @@
 This file documents the revision history for Perl extension HTTP::Request::AsCGI.
 
+0.6  2006-11-08 00:00:00 2005
+    - Support for perl 5.6
+    - Support for in memory handles
+
 0.5  2006-01-20 00:00:00 2005
     - Fixed bug where content was overridden on 500 responses.
 
@@ -17,4 +21,3 @@ This file documents the revision history for Perl extension HTTP::Request::AsCGI
 
 0.1  2005-10-21 00:00:00 2005
     - First release.
-
