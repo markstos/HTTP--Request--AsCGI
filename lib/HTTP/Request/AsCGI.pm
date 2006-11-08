@@ -63,13 +63,13 @@ sub initialize {
     if ( exists $params->{stderr} ) {
         $self->stderr( $params->{stderr} );
     }
-    
+
     if ( exists $params->{dup} ) {
         $self->should_dup( $params->{dup} ? 1 : 0 );
     }
     else {
         $self->should_dup(1);
-    }    
+    }
 
     if ( exists $params->{restore} ) {
         $self->should_restore( $params->{restore} ? 1 : 0 );
@@ -304,7 +304,8 @@ sub setup_stderr {
 }
 
 sub response {
-    my ( $self, $callback ) = @_;
+    my $self   = shift;
+    my %params = ( headers_only => 0, sync => 0, @_ );
 
     return undef unless $self->stdout;
 
@@ -354,30 +355,44 @@ sub response {
         return $response;
     }
 
-    if ($callback) {
+    if ( $params{headers_only} ) {
 
-        my $handle = $self->stdout;
+        if ( $params{sync} ) {
 
-        $response->content( sub {
+            my $position = tell( $self->stdout )
+              or croak("Couldn't get file position from stdout handle: '$!'");
 
-            if ( $handle->read( my $buffer, 4096 ) ) {
-                return $buffer;
-            }
-
-            return undef;
-        });
-    }
-    else {
-
-        my $length = 0;
-
-        while ( $self->stdout->read( my $buffer, 4096 ) ) {
-            $length += length($buffer);
-            $response->add_content($buffer);
+            sysseek( $self->stdout, $position, SEEK_SET )
+              or croak("Couldn't seek stdout handle: '$!'");
         }
 
-        if ( $length && !$response->content_length ) {
-            $response->content_length($length);
+        return $response;
+    }
+
+    my $content        = undef;
+    my $content_length = 0;
+
+    while () {
+
+        my $r = $self->stdout->read( $content, 4096, $content_length );
+
+        if ( defined $r ) {
+
+            $content_length += $r;
+
+            last unless $r;
+        }
+        else {
+            croak("Couldn't read from stdin handle: '$!'");
+        }
+    }
+
+    if ( $content_length ) {
+
+        $response->content_ref(\$content);
+
+        if ( !$response->content_length ) {
+            $response->content_length($content_length);
         }
     }
 
