@@ -8,7 +8,7 @@ use base 'Class::Accessor::Fast';
 use Carp            qw[croak];
 use HTTP::Response  qw[];
 use IO::Handle      qw[];
-use IO::File        qw[SEEK_SET];
+use IO::File        qw[SEEK_SET SEEK_END];
 use Symbol          qw[];
 
 __PACKAGE__->mk_accessors(qw[environment request is_restored is_setuped is_prepared should_dup should_restore should_rewind stdin stdout stderr]);
@@ -212,7 +212,7 @@ sub setup_stdin {
             }
 
             STDIN->fdopen( $self->stdin, '<' )
-              or croak("Couldn't redirect STDIN: '$!'");
+              or croak("Couldn't dup stdin handle to STDIN: '$!'");
         }
         else {
 
@@ -247,7 +247,7 @@ sub setup_stdout {
             }
 
             STDOUT->fdopen( $self->stdout, '>' )
-              or croak("Couldn't redirect STDOUT: '$!'");
+              or croak("Couldn't dup stdout handle to STDOUT: '$!'");
         }
         else {
 
@@ -283,7 +283,7 @@ sub setup_stderr {
             }
 
             STDERR->fdopen( $self->stderr, '>' )
-              or croak("Couldn't redirect STDERR: '$!'");
+              or croak("Couldn't dup stderr handle to STDERR: '$!'");
         }
         else {
 
@@ -307,52 +307,63 @@ sub response {
     my $self   = shift;
     my %params = ( headers_only => 0, sync => 0, @_ );
 
-    return undef unless $self->stdout;
+    return undef unless $self->has_stdout;
 
     seek( $self->stdout, 0, SEEK_SET )
       or croak("Couldn't seek stdout handle: '$!'");
 
-    my $headers;
+    my $message  = undef;
+    my $response = HTTP::Response->new( 200, 'OK' );
+       $response->protocol('HTTP/1.1');
+
     while ( my $line = $self->stdout->getline ) {
-        $headers .= $line;
-        last if $headers =~ /\x0d?\x0a\x0d?\x0a$/;
+        $message .= $line;
+        last if $message =~ /\x0d?\x0a\x0d?\x0a$/;
     }
 
-    unless ( defined $headers ) {
-        $headers = "HTTP/1.1 500 Internal Server Error\x0d\x0a";
-    }
+    if ( !$message ) {
 
-    unless ( $headers =~ /^HTTP/ ) {
-        $headers = "HTTP/1.1 200 OK\x0d\x0a" . $headers;
-    }
-
-    my $response = HTTP::Response->parse($headers);
-    $response->date( time() ) unless $response->date;
-
-    my $message = $response->message;
-    my $status  = $response->header('Status');
-
-    if ( $message && $message =~ /^(.+)\x0d$/ ) {
-        $response->message($1);
-    }
-
-    if ( $status && $status =~ /^(\d\d\d)\s?(.+)?$/ ) {
-
-        my $code    = $1;
-        my $message = $2 || HTTP::Status::status_message($code);
-
-        $response->code($code);
-        $response->message($message);
-    }
-
-    my $length = ( stat( $self->stdout ) )[7] - tell( $self->stdout );
-
-    if ( $response->code == 500 && !$length ) {
-
+        $response->code(500);
+        $response->message('Internal Server Error');
+        $response->date( time );
         $response->content( $response->error_as_HTML );
         $response->content_type('text/html');
+        $response->content_length( length $response->content );
 
         return $response;
+    }
+
+    my $Token   = qr/[\x21\x23-\x27\x2A\x2B\x2D\x2E\x30-\x39\x41-\x5A\x5E-\x7A\x7C\x7E]/;
+    my $Version = qr/HTTP\/[0-9]+\.[0-9]+/;
+
+    if ( $message =~ s/^($Version)[\x09\x20]+(\d{3})[\x09\x20]+([\x20-\xFF]*)\x0D?\x0A//o ) {
+
+        $response->protocol($1);
+        $response->code($2);
+        $response->message($3);
+    }
+
+    $message =~ s/\x0D?\x0A[\x09\x20]+/\x20/gs;
+
+    foreach ( split /\x0D?\x0A/, $message ) {
+
+        if ( /^($Token+)[\x09\x20]*:[\x09\x20]*([\x20-\xFF]+)[\x09\x20]*$/o ) {
+            $response->headers->push_header( $1 => $2 );
+        }
+        else {
+            # XXX what should we do on bad headers?
+        }
+    }
+
+    my $status = $response->header('Status');
+
+    if ( $status && $status =~ /^(\d{3})[\x09\x20]+([\x20-\xFF]+)$/ ) {
+        $response->code($1);
+        $response->message($2);
+    }
+
+    if ( !$response->date ) {
+        $response->date(time);
     }
 
     if ( $params{headers_only} ) {
@@ -374,7 +385,7 @@ sub response {
 
     while () {
 
-        my $r = $self->stdout->read( $content, 4096, $content_length );
+        my $r = $self->stdout->read( $content, 65536, $content_length );
 
         if ( defined $r ) {
 
@@ -383,7 +394,7 @@ sub response {
             last unless $r;
         }
         else {
-            croak("Couldn't read from stdin handle: '$!'");
+            croak("Couldn't read response content from stdin handle: '$!'");
         }
     }
 
@@ -515,11 +526,8 @@ sub restore_stderr {
 sub DESTROY {
     my $self = shift;
 
-    if ( $self->should_restore ) {
-
-        if ( $self->is_setuped && !$self->is_restored ) {
-            $self->restore;
-        }
+    if ( $self->should_restore && $self->is_setuped && !$self->is_restored ) {
+        $self->restore;
     }
 }
 
