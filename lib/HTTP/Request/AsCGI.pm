@@ -8,10 +8,23 @@ use base 'Class::Accessor::Fast';
 use Carp            qw[croak];
 use HTTP::Response  qw[];
 use IO::Handle      qw[];
-use IO::File        qw[SEEK_SET SEEK_END];
+use IO::File        qw[SEEK_SET];
 use Symbol          qw[];
 
-__PACKAGE__->mk_accessors(qw[environment request is_restored is_setuped is_prepared should_dup should_restore should_rewind stdin stdout stderr]);
+__PACKAGE__->mk_accessors( qw[ is_setuped
+                               is_prepared
+                               is_restored
+
+                               should_dup
+                               should_restore
+                               should_rewind
+                               should_setup_content
+
+                               environment
+                               request
+                               stdin
+                               stdout
+                               stderr ] );
 
 our $VERSION = 0.6_01;
 
@@ -83,6 +96,13 @@ sub initialize {
     }
     else {
         $self->should_rewind(1);
+    }
+
+    if ( exists $params->{content} ) {
+        $self->should_setup_content( $params->{content} ? 1 : 0 );
+    }
+    else {
+        $self->should_setup_content(1);
     }
 
     $self->prepare;
@@ -159,6 +179,7 @@ sub prepare {
 sub setup {
     my $self = shift;
 
+    $self->setup_content;
     $self->setup_stdin;
     $self->setup_stdout;
     $self->setup_stderr;
@@ -173,33 +194,40 @@ sub setup {
     return $self;
 }
 
-sub setup_environment {
+sub setup_content {
     my $self = shift;
 
-    no warnings 'uninitialized';
+    if ( $self->should_setup_content && $self->has_stdin ) {
 
-    if ( $self->should_restore ) {
-        $self->{restore}->{environment} = { %ENV };
+        if ( $self->request->content_length ) {
+
+            my $content = $self->request->content_ref;
+
+            if ( ref $content eq 'SCALAR' ) {
+
+                if ( defined $$content && length $$content ) {
+
+                    print( { $self->stdin } $$content )
+                      or croak("Couldn't write request content to stdin handle: '$!'");
+
+                    if ( $self->should_rewind ) {
+
+                        seek( $self->stdin, 0, SEEK_SET )
+                          or croak("Couldn't seek stdin handle: '$!'");
+                    }
+                }
+            }
+            else {
+                croak("Can't handle request content of '$content'");
+            }
+        }
     }
-
-    %ENV = %{ $self->environment };
 }
 
 sub setup_stdin {
     my $self = shift;
 
     if ( $self->has_stdin ) {
-
-        binmode( $self->stdin );
-
-        if ( $self->request->content_length ) {
-
-            syswrite( $self->stdin, $self->request->content )
-              or croak("Couldn't write request content to stdin handle: '$!'");
-
-            sysseek( $self->stdin, 0, SEEK_SET )
-              or croak("Couldn't seek stdin handle: '$!'");
-        }
 
         if ( $self->should_dup ) {
 
@@ -224,9 +252,10 @@ sub setup_stdin {
                 $self->{restore}->{stdin_ref} = \*$stdin;
             }
 
-            *{ $stdin } = $self->stdin;
+            *$stdin = $self->stdin;
         }
 
+        binmode( $self->stdin );
         binmode( STDIN );
     }
 }
@@ -259,7 +288,7 @@ sub setup_stdout {
                 $self->{restore}->{stdout_ref} = \*$stdout;
             }
 
-            *{ $stdout } = $self->stdout;
+            *$stdout = $self->stdout;
         }
 
         binmode( $self->stdout );
@@ -295,12 +324,24 @@ sub setup_stderr {
                 $self->{restore}->{stderr_ref} = \*$stderr;
             }
 
-            *{ $stderr } = $self->stderr;
+            *$stderr = $self->stderr;
         }
 
         binmode( $self->stderr );
         binmode( STDERR );
     }
+}
+
+sub setup_environment {
+    my $self = shift;
+
+    no warnings 'uninitialized';
+
+    if ( $self->should_restore ) {
+        $self->{restore}->{environment} = { %ENV };
+    }
+
+    %ENV = %{ $self->environment };
 }
 
 sub response {
@@ -309,8 +350,11 @@ sub response {
 
     return undef unless $self->has_stdout;
 
-    seek( $self->stdout, 0, SEEK_SET )
-      or croak("Couldn't seek stdout handle: '$!'");
+    if ( $self->should_rewind ) {
+
+        seek( $self->stdout, 0, SEEK_SET )
+          or croak("Couldn't seek stdout handle: '$!'");
+    }
 
     my $message  = undef;
     my $response = HTTP::Response->new( 200, 'OK' );
@@ -451,8 +495,7 @@ sub restore_stdin {
         else {
 
             my $stdin_ref = $self->{restore}->{stdin_ref};
-
-            *{ $stdin_ref } = $stdin;
+              *$stdin_ref = $stdin;
         }
 
         if ( $self->should_rewind ) {
@@ -481,8 +524,7 @@ sub restore_stdout {
         else {
 
             my $stdout_ref = $self->{restore}->{stdout_ref};
-
-            *{ $stdout_ref } = $stdout;
+              *$stdout_ref = $stdout;
         }
 
         if ( $self->should_rewind ) {
@@ -511,8 +553,7 @@ sub restore_stderr {
         else {
 
             my $stderr_ref = $self->{restore}->{stderr_ref};
-
-            *{ $stderr_ref } = $stderr;
+              *$stderr_ref = $stderr;
         }
 
         if ( $self->should_rewind ) {
