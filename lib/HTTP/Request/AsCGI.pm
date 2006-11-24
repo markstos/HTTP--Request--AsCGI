@@ -194,33 +194,57 @@ sub setup {
     return $self;
 }
 
+sub write_content {
+    my ( $self, $handle ) = @_;
+
+    my $content = $self->request->content_ref;
+
+    if ( ref($content) eq 'SCALAR' ) {
+
+        if ( defined($$content) && length($$content) ) {
+
+            print( { $self->stdin } $$content )
+              or croak("Couldn't write request content to stdin handle: '$!'");
+
+            if ( $self->should_rewind ) {
+
+                seek( $self->stdin, 0, SEEK_SET )
+                  or croak("Couldn't seek stdin handle: '$!'");
+            }
+        }
+    }
+    elsif ( ref($content) eq 'CODE' ) {
+
+        while () {
+
+            my $chunk = &$content();
+
+            if ( defined($chunk) && length($chunk) ) {
+
+                print( { $self->stdin } $chunk )
+                  or croak("Couldn't write request content chunk to stdin handle: '$!'");
+            }
+            else {
+                last;
+            }
+        }
+
+        if ( $self->should_rewind ) {
+
+            seek( $self->stdin, 0, SEEK_SET )
+              or croak("Couldn't seek stdin handle: '$!'");
+        }
+    }
+    else {
+        croak("Couldn't write request content to stdin handle: 'Unknown request content $content'");
+    }
+}
+
 sub setup_content {
     my $self = shift;
 
-    if ( $self->should_setup_content && $self->has_stdin ) {
-
-        if ( $self->request->content_length ) {
-
-            my $content = $self->request->content_ref;
-
-            if ( ref $content eq 'SCALAR' ) {
-
-                if ( defined $$content && length $$content ) {
-
-                    print( { $self->stdin } $$content )
-                      or croak("Couldn't write request content to stdin handle: '$!'");
-
-                    if ( $self->should_rewind ) {
-
-                        seek( $self->stdin, 0, SEEK_SET )
-                          or croak("Couldn't seek stdin handle: '$!'");
-                    }
-                }
-            }
-            else {
-                croak("Can't handle request content of '$content'");
-            }
-        }
+    if ( $self->has_stdin && $self->should_setup_content ) {
+        $self->write_content($self->stdin);
     }
 }
 
@@ -344,6 +368,9 @@ sub setup_environment {
     %ENV = %{ $self->environment };
 }
 
+my $HTTP_Token   = qr/[\x21\x23-\x27\x2A\x2B\x2D\x2E\x30-\x39\x41-\x5A\x5E-\x7A\x7C\x7E]/;
+my $HTTP_Version = qr/HTTP\/[0-9]+\.[0-9]+/;
+
 sub response {
     my $self   = shift;
     my %params = ( headers_only => 0, sync => 0, @_ );
@@ -360,16 +387,15 @@ sub response {
     my $response = HTTP::Response->new( 200, 'OK' );
        $response->protocol('HTTP/1.1');
 
-    while ( my $line = $self->stdout->getline ) {
+    while ( my $line = readline($self->stdout) ) {
         $message .= $line;
         last if $message =~ /\x0d?\x0a\x0d?\x0a$/;
     }
 
     if ( !$message ) {
-
         $response->code(500);
         $response->message('Internal Server Error');
-        $response->date( time );
+        $response->date( time() );
         $response->content( $response->error_as_HTML );
         $response->content_type('text/html');
         $response->content_length( length $response->content );
@@ -377,11 +403,7 @@ sub response {
         return $response;
     }
 
-    my $Token   = qr/[\x21\x23-\x27\x2A\x2B\x2D\x2E\x30-\x39\x41-\x5A\x5E-\x7A\x7C\x7E]/;
-    my $Version = qr/HTTP\/[0-9]+\.[0-9]+/;
-
-    if ( $message =~ s/^($Version)[\x09\x20]+(\d{3})[\x09\x20]+([\x20-\xFF]*)\x0D?\x0A//o ) {
-
+    if ( $message =~ s/^($HTTP_Version)[\x09\x20]+(\d\d\d)[\x09\x20]+([\x20-\xFF]*)\x0D?\x0A//o ) {
         $response->protocol($1);
         $response->code($2);
         $response->message($3);
@@ -391,7 +413,9 @@ sub response {
 
     foreach ( split /\x0D?\x0A/, $message ) {
 
-        if ( /^($Token+)[\x09\x20]*:[\x09\x20]*([\x20-\xFF]+)[\x09\x20]*$/o ) {
+        s/[\x09\x20]*$//;
+
+        if ( /^($HTTP_Token+)[\x09\x20]*:[\x09\x20]*([\x20-\xFF]+)$/o ) {
             $response->headers->push_header( $1 => $2 );
         }
         else {
@@ -401,7 +425,7 @@ sub response {
 
     my $status = $response->header('Status');
 
-    if ( $status && $status =~ /^(\d{3})[\x09\x20]+([\x20-\xFF]+)$/ ) {
+    if ( $status && $status =~ /^(\d\d\d)[\x09\x20]+([\x20-\xFF]+)$/ ) {
         $response->code($1);
         $response->message($2);
     }
@@ -429,13 +453,16 @@ sub response {
 
     while () {
 
-        my $r = $self->stdout->read( $content, 65536, $content_length );
+        my $r = read( $self->stdout, $content, 65536, $content_length );
 
         if ( defined $r ) {
 
-            $content_length += $r;
-
-            last unless $r;
+            if ( $r == 0 ) {
+                last;
+            }
+            else {
+                $content_length += $r;
+            }
         }
         else {
             croak("Couldn't read response content from stdin handle: '$!'");

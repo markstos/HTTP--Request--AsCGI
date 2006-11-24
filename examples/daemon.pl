@@ -18,7 +18,7 @@ my $server = HTTP::Daemon->new( LocalPort => 3000, ReuseAddr => 1 )
 print "Please contact me at: <URL:", $server->url, ">\n";
 
 while ( my $client = $server->accept ) {
-    
+
     my %e = (
         REMOTE_ADDR => $client->peerhost,
         REMOTE_HOST => $client->peerhost,
