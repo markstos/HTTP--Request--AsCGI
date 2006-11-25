@@ -53,7 +53,7 @@ while ( my $client = $server->accept ) {
               $q->end_form,
               $q->h2('Parameters'),
               $q->Dump,
-              $q->h2('Enviroment'),
+              $q->h2('Environment'),
               $q->table(
                   $q->Tr( [
                       map{ $q->td( [ $_, $ENV{$_} ] ) } sort keys %ENV

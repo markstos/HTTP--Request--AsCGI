@@ -21,7 +21,7 @@ my $stdout;
 
     $stdout = $c->stdout;
 
-    # enviroment and descriptors will automatically be restored when $c is destructed.
+    # environment and descriptors will automatically be restored when $c is destructed.
 }
 
 while ( my $line = $stdout->getline ) {

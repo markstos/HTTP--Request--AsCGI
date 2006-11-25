@@ -11,7 +11,7 @@ use IO::Handle      qw[];
 use IO::File        qw[SEEK_SET];
 use Symbol          qw[];
 
-__PACKAGE__->mk_accessors( qw[ is_setuped
+__PACKAGE__->mk_accessors( qw[ is_setup
                                is_prepared
                                is_restored
 
@@ -53,7 +53,7 @@ sub initialize {
     }
 
     if ( exists $params->{environment} ) {
-        $self->environment( $params->{environment} );
+        $self->environment( { %{ $params->{environment} } } );
     }
     else {
         $self->environment( {} );
@@ -179,6 +179,10 @@ sub prepare {
 sub setup {
     my $self = shift;
 
+    if ( $self->is_setup ) {
+        croak("An attempt was made to setup environment variables and STD handles which has already been setup.");
+    }
+
     $self->setup_content;
     $self->setup_stdin;
     $self->setup_stdout;
@@ -189,7 +193,7 @@ sub setup {
         CGI::initialize_globals();
     }
 
-    $self->is_setuped(1);
+    $self->is_setup(1);
 
     return $self;
 }
@@ -204,12 +208,12 @@ sub write_content {
         if ( defined($$content) && length($$content) ) {
 
             print( { $self->stdin } $$content )
-              or croak("Couldn't write request content to stdin handle: '$!'");
+              or croak("Couldn't write request content SCALAR to stdin handle: '$!'");
 
             if ( $self->should_rewind ) {
 
                 seek( $self->stdin, 0, SEEK_SET )
-                  or croak("Couldn't seek stdin handle: '$!'");
+                  or croak("Couldn't rewind stdin handle: '$!'");
             }
         }
     }
@@ -222,7 +226,7 @@ sub write_content {
             if ( defined($chunk) && length($chunk) ) {
 
                 print( { $self->stdin } $chunk )
-                  or croak("Couldn't write request content chunk to stdin handle: '$!'");
+                  or croak("Couldn't write request content callback to stdin handle: '$!'");
             }
             else {
                 last;
@@ -232,7 +236,7 @@ sub write_content {
         if ( $self->should_rewind ) {
 
             seek( $self->stdin, 0, SEEK_SET )
-              or croak("Couldn't seek stdin handle: '$!'");
+              or croak("Couldn't rewind stdin handle: '$!'");
         }
     }
     else {
@@ -243,7 +247,7 @@ sub write_content {
 sub setup_content {
     my $self = shift;
 
-    if ( $self->has_stdin && $self->should_setup_content ) {
+    if ( $self->should_setup_content && $self->has_stdin ) {
         $self->write_content($self->stdin);
     }
 }
@@ -263,7 +267,7 @@ sub setup_stdin {
                 $self->{restore}->{stdin} = $stdin;
             }
 
-            STDIN->fdopen( $self->stdin, '<' )
+            open( STDIN, '<&' . fileno($self->stdin) )
               or croak("Couldn't dup stdin handle to STDIN: '$!'");
         }
         else {
@@ -299,7 +303,7 @@ sub setup_stdout {
                 $self->{restore}->{stdout} = $stdout;
             }
 
-            STDOUT->fdopen( $self->stdout, '>' )
+            open( STDOUT, '>&' . fileno($self->stdout) )
               or croak("Couldn't dup stdout handle to STDOUT: '$!'");
         }
         else {
@@ -335,8 +339,8 @@ sub setup_stderr {
                 $self->{restore}->{stderr} = $stderr;
             }
 
-            STDERR->fdopen( $self->stderr, '>' )
-              or croak("Couldn't dup stderr handle to STDERR: '$!'");
+            open( STDERR, '>&' . fileno($self->stderr) )
+              or croak("Couldn't dup stdout handle to STDOUT: '$!'");
         }
         else {
 
@@ -388,7 +392,14 @@ sub response {
        $response->protocol('HTTP/1.1');
 
     while ( my $line = readline($self->stdout) ) {
-        $message .= $line;
+
+        if ( !$message && $line =~ /^\x0d?\x0a$/ ) {
+            next;
+        }
+        else {
+            $message .= $line;
+        }
+
         last if $message =~ /\x0d?\x0a\x0d?\x0a$/;
     }
 
@@ -431,7 +442,7 @@ sub response {
     }
 
     if ( !$response->date ) {
-        $response->date(time);
+        $response->date(time());
     }
 
     if ( $params{headers_only} ) {
@@ -484,17 +495,26 @@ sub response {
 sub restore {
     my $self = shift;
 
-    if ( $self->should_restore ) {
-
-        $self->restore_environment;
-        $self->restore_stdin;
-        $self->restore_stdout;
-        $self->restore_stderr;
-
-        $self->{restore} = {};
-
-        $self->is_restored(1);
+    if ( !$self->should_restore ) {
+        croak("An attempt was made to restore environment variables and STD handles which has not been saved.");
     }
+
+    if ( !$self->is_setup ) {
+        croak("An attempt was made to restore environment variables and STD handles which has not been setup.");
+    }
+
+    if ( $self->is_restored ) {
+        croak("An attempt was made to restore environment variables and STD handles which has already been restored.");
+    }
+
+    $self->restore_environment;
+    $self->restore_stdin;
+    $self->restore_stdout;
+    $self->restore_stderr;
+
+    $self->{restore} = {};
+
+    $self->is_restored(1);
 
     return $self;
 }
@@ -516,7 +536,7 @@ sub restore_stdin {
 
         if ( $self->should_dup ) {
 
-            STDIN->fdopen( $stdin, '<' )
+            STDIN->fdopen( fileno($stdin), '<' )
               or croak("Couldn't restore STDIN: '$!'");
         }
         else {
@@ -528,7 +548,7 @@ sub restore_stdin {
         if ( $self->should_rewind ) {
 
             seek( $self->stdin, 0, SEEK_SET )
-              or croak("Couldn't seek stdin handle: '$!'");
+              or croak("Couldn't rewind stdin handle: '$!'");
         }
     }
 }
@@ -545,7 +565,7 @@ sub restore_stdout {
             STDOUT->flush
               or croak("Couldn't flush STDOUT: '$!'");
 
-            STDOUT->fdopen( $stdout, '>' )
+            STDOUT->fdopen( fileno($stdout), '>' )
               or croak("Couldn't restore STDOUT: '$!'");
         }
         else {
@@ -557,7 +577,7 @@ sub restore_stdout {
         if ( $self->should_rewind ) {
 
             seek( $self->stdout, 0, SEEK_SET )
-              or croak("Couldn't seek stdout handle: '$!'");
+              or croak("Couldn't rewind stdout handle: '$!'");
         }
     }
 }
@@ -574,7 +594,7 @@ sub restore_stderr {
             STDERR->flush
               or croak("Couldn't flush STDERR: '$!'");
 
-            STDERR->fdopen( $stderr, '>' )
+            STDERR->fdopen( fileno($stderr), '>' )
               or croak("Couldn't restore STDERR: '$!'");
         }
         else {
@@ -586,7 +606,7 @@ sub restore_stderr {
         if ( $self->should_rewind ) {
 
             seek( $self->stderr, 0, SEEK_SET )
-              or croak("Couldn't seek stderr handle: '$!'");
+              or croak("Couldn't rewind stderr handle: '$!'");
         }
     }
 }
@@ -594,7 +614,7 @@ sub restore_stderr {
 sub DESTROY {
     my $self = shift;
 
-    if ( $self->should_restore && $self->is_setuped && !$self->is_restored ) {
+    if ( $self->should_restore && $self->is_setup && !$self->is_restored ) {
         $self->restore;
     }
 }
@@ -627,7 +647,7 @@ HTTP::Request::AsCGI - Setup a CGI environment from a HTTP::Request
 
         $stdout = $c->stdout;
 
-        # environment and descriptors will automatically be restored
+        # environment and descriptors is automatically restored
         # when $c is destructed.
     }
 
@@ -643,10 +663,76 @@ Provides a convinient way of setting up an CGI environment from a HTTP::Request.
 
 =over 4
 
-=item new ( $request [, key => value ] )
+=item * new
 
-Contructor, first argument must be a instance of HTTP::Request
-followed by optional pairs of environment key and value.
+Contructor
+
+  HTTP::Request->new( $request, %environment );
+
+  HTTP::Request->new( request => $request, environment => \%environment );
+
+=over 8
+
+=item * request
+
+    request => HTTP::Request->new( GET => 'http://www.host.com/' )
+
+=item * stdin
+
+Filehandle to be used as C<STDIN>, defaults to a temporary file. If value is 
+C<undef>, C<STDIN> will be left as is.
+
+    stdin => IO::File->new_tmpfile
+    stdin => IO::String->new
+    stdin => $fh
+    stdin => undef
+
+=item * stdout
+
+Filehandle to be used as C<STDOUT>, defaults to a temporary file. If value is 
+C<undef>, C<STDOUT> will be left as is.
+
+    stdout => IO::File->new_tmpfile
+    stdout => IO::String->new
+    stdout => $fh
+    stdout => undef
+
+=item * stderr
+
+Filehandle to be used as C<STDERR>, defaults to C<undef>. If value is C<undef>, 
+C<STDERR> will be left as is.
+
+    stderr => IO::File->new_tmpfile
+    stderr => IO::String->new
+    stderr => $fh
+    stderr => undef
+
+=item * environment
+
+    environment => \%ENV
+    environment => { PATH => '/bin:/usr/bin' }
+
+=item * dup
+
+    dup => 0
+    dup => 1
+
+=item * restore
+
+    restore => 0
+    restore => 1
+
+=item * rewind
+
+    rewind => 0
+    rewind => 1
+
+=item * content
+
+    content => 0
+    content => 1
+
+=back
 
 =item environment
 
@@ -672,12 +758,12 @@ Returns a HTTP::Response. Can only be called after restore.
 =item stdin
 
 Accessor for handle that will be used for STDIN, must be a real seekable
-handle with an file descriptor. Defaults to a tempoary IO::File instance.
+handle with an file descriptor. Defaults to a temporary IO::File instance.
 
 =item stdout
 
 Accessor for handle that will be used for STDOUT, must be a real seekable
-handle with an file descriptor. Defaults to a tempoary IO::File instance.
+handle with an file descriptor. Defaults to a temporary IO::File instance.
 
 =item stderr
 
