@@ -2,10 +2,14 @@
 
 use Test::More tests => 3;
 
+{
+    eval "use IO::String 1.07";
+    plan skip_all => 'IO::String 1.07 required' if $@;
+}
+
 use strict;
 use warnings;
 
-use IO::File;
 use HTTP::Request;
 use HTTP::Request::AsCGI;
 
@@ -16,7 +20,10 @@ $r->content_type('text/plain');
 
 my $c = HTTP::Request::AsCGI->new(
     request => $r,
-    stderr  => IO::File->new_tmpfile
+    dup     => 0,
+    stdin   => IO::String->new,
+    stdout  => IO::String->new,
+    stderr  => IO::String->new
 );
 
 $c->setup;

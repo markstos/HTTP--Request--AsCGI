@@ -2,10 +2,14 @@
 
 use Test::More tests => 3;
 
+{
+    eval "use PerlIO::scalar";
+    plan skip_all => 'PerlIO::scalar required' if $@;
+}
+
 use strict;
 use warnings;
 
-use IO::File;
 use HTTP::Request;
 use HTTP::Request::AsCGI;
 
@@ -14,9 +18,21 @@ $r->content('STDIN');
 $r->content_length(5);
 $r->content_type('text/plain');
 
+open( my $stdin, ' +<', \( my $stdin_scalar ) )
+  or die qq/Couldn't open a new PerlIO::scalar/;
+
+open( my $stdout, '+>', \( my $stdout_scalar ) )
+  or die qq/Couldn't open a new PerlIO::scalar/;
+
+open( my $stderr, '+>', \( my $stderr_scalar ) )
+  or die qq/Couldn't open a new PerlIO::scalar/;
+
 my $c = HTTP::Request::AsCGI->new(
     request => $r,
-    stderr  => IO::File->new_tmpfile
+    dup     => 0,
+    stdin   => $stdin,
+    stdout  => $stdout,
+    stderr  => $stderr
 );
 
 $c->setup;

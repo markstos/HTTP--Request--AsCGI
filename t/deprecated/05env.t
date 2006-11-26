@@ -10,13 +10,10 @@ use HTTP::Request::AsCGI;
 
 my $r = HTTP::Request->new( GET => 'http://www.host.com/cgi-bin/script.cgi/my/path/?a=1&b=2', [ 'X-Test' => 'Test' ] );
    $r->authorization_basic( 'chansen', 'xxx' );
+my %e = ( SCRIPT_NAME => '/cgi-bin/script.cgi' );
+my $c = HTTP::Request::AsCGI->new( $r, %e );
 
-my $c = HTTP::Request::AsCGI->new( 
-    environment => { SCRIPT_NAME => '/cgi-bin/script.cgi' },
-    request     => $r,
-    stdout      => undef
-);
-
+$c->stdout(undef);
 $c->setup;
 
 is( $ENV{GATEWAY_INTERFACE}, 'CGI/1.1', 'GATEWAY_INTERFACE' );

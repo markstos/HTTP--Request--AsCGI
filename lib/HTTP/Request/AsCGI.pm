@@ -7,9 +7,9 @@ use base 'Class::Accessor::Fast';
 
 use Carp            qw[croak];
 use HTTP::Response  qw[];
-use IO::Handle      qw[];
 use IO::File        qw[SEEK_SET];
 use Symbol          qw[];
+use URI::Escape     qw[];
 
 __PACKAGE__->mk_accessors( qw[ is_setup
                                is_prepared
@@ -116,6 +116,9 @@ sub has_stdin  { return defined $_[0]->stdin  }
 sub has_stdout { return defined $_[0]->stdout }
 sub has_stderr { return defined $_[0]->stderr }
 
+my $HTTP_Token   = qr/[\x21\x23-\x27\x2A\x2B\x2D\x2E\x30-\x39\x41-\x5A\x5E-\x7A\x7C\x7E]/;
+my $HTTP_Version = qr/HTTP\/[0-9]+\.[0-9]+/;
+
 sub prepare {
     my $self = shift;
 
@@ -136,7 +139,7 @@ sub prepare {
         GATEWAY_INTERFACE => 'CGI/1.1',
         HTTP_HOST         => $uri->host_port,
         HTTPS             => ( $uri->scheme eq 'https' ) ? 'ON' : 'OFF',  # not in RFC 3875
-        PATH_INFO         => $uri->path,
+        PATH_INFO         => URI::Escape::uri_unescape($uri->path),
         QUERY_STRING      => $uri->query || '',
         SCRIPT_NAME       => '/',
         SERVER_NAME       => $uri->host,
@@ -150,6 +153,26 @@ sub prepare {
         REQUEST_METHOD    => $request->method
     );
 
+    if ( my $authorization = $request->header('Authorization') ) {
+
+        ( my $scheme ) = $authorization =~ /^($HTTP_Token+)/o;
+
+        if ( $scheme =~ /^Basic/i ) {
+
+            if ( ( my $username ) = $request->headers->authorization_basic ) {
+                $cgi{AUTH_TYPE}   = 'Basic';
+                $cgi{REMOTE_USER} = $username;
+            }
+        }
+        elsif ( $scheme =~ /^Digest/i ) {
+
+            if ( ( my $username ) = $authorization =~ /username="([^"]+)"/ ) {
+                $cgi{AUTH_TYPE}   = 'Digest';
+                $cgi{REMOTE_USER} = $username;
+            }
+        }
+    }
+
     foreach my $key ( keys %cgi ) {
 
         unless ( exists $environment->{ $key } ) {
@@ -157,18 +180,18 @@ sub prepare {
         }
     }
 
-    foreach my $field ( $self->request->headers->header_field_names ) {
+    foreach my $field ( $request->headers->header_field_names ) {
 
         my $key = uc("HTTP_$field");
         $key =~ tr/-/_/;
         $key =~ s/^HTTP_// if $field =~ /^Content-(Length|Type)$/;
 
         unless ( exists $environment->{ $key } ) {
-            $environment->{ $key } = $self->request->headers->header($field);
+            $environment->{ $key } = $request->headers->header($field);
         }
     }
 
-    unless ( $environment->{SCRIPT_NAME} eq '/' && $environment->{PATH_INFO} ) {
+    if ( $environment->{SCRIPT_NAME} ne '/' && $environment->{PATH_INFO} ) {
         $environment->{PATH_INFO} =~ s/^\Q$environment->{SCRIPT_NAME}\E/\//;
         $environment->{PATH_INFO} =~ s/^\/+/\//;
     }
@@ -180,80 +203,13 @@ sub setup {
     my $self = shift;
 
     if ( $self->is_setup ) {
-        croak("An attempt was made to setup environment variables and STD handles which has already been setup.");
+        croak(   'An attempt was made to setup environment variables and '
+               . 'standard filehandles which has already been setup.' );
     }
-
-    $self->setup_content;
-    $self->setup_stdin;
-    $self->setup_stdout;
-    $self->setup_stderr;
-    $self->setup_environment;
-
-    if ( $INC{'CGI.pm'} ) {
-        CGI::initialize_globals();
-    }
-
-    $self->is_setup(1);
-
-    return $self;
-}
-
-sub write_content {
-    my ( $self, $handle ) = @_;
-
-    my $content = $self->request->content_ref;
-
-    if ( ref($content) eq 'SCALAR' ) {
-
-        if ( defined($$content) && length($$content) ) {
-
-            print( { $self->stdin } $$content )
-              or croak("Couldn't write request content SCALAR to stdin handle: '$!'");
-
-            if ( $self->should_rewind ) {
-
-                seek( $self->stdin, 0, SEEK_SET )
-                  or croak("Couldn't rewind stdin handle: '$!'");
-            }
-        }
-    }
-    elsif ( ref($content) eq 'CODE' ) {
-
-        while () {
-
-            my $chunk = &$content();
-
-            if ( defined($chunk) && length($chunk) ) {
-
-                print( { $self->stdin } $chunk )
-                  or croak("Couldn't write request content callback to stdin handle: '$!'");
-            }
-            else {
-                last;
-            }
-        }
-
-        if ( $self->should_rewind ) {
-
-            seek( $self->stdin, 0, SEEK_SET )
-              or croak("Couldn't rewind stdin handle: '$!'");
-        }
-    }
-    else {
-        croak("Couldn't write request content to stdin handle: 'Unknown request content $content'");
-    }
-}
-
-sub setup_content {
-    my $self = shift;
 
     if ( $self->should_setup_content && $self->has_stdin ) {
-        $self->write_content($self->stdin);
+        $self->setup_content;
     }
-}
-
-sub setup_stdin {
-    my $self = shift;
 
     if ( $self->has_stdin ) {
 
@@ -268,7 +224,7 @@ sub setup_stdin {
             }
 
             open( STDIN, '<&' . fileno($self->stdin) )
-              or croak("Couldn't dup stdin handle to STDIN: '$!'");
+              or croak("Couldn't dup stdin filehandle to STDIN: '$!'");
         }
         else {
 
@@ -286,10 +242,6 @@ sub setup_stdin {
         binmode( $self->stdin );
         binmode( STDIN );
     }
-}
-
-sub setup_stdout {
-    my $self = shift;
 
     if ( $self->has_stdout ) {
 
@@ -304,7 +256,7 @@ sub setup_stdout {
             }
 
             open( STDOUT, '>&' . fileno($self->stdout) )
-              or croak("Couldn't dup stdout handle to STDOUT: '$!'");
+              or croak("Couldn't dup stdout filehandle to STDOUT: '$!'");
         }
         else {
 
@@ -322,10 +274,6 @@ sub setup_stdout {
         binmode( $self->stdout );
         binmode( STDOUT);
     }
-}
-
-sub setup_stderr {
-    my $self = shift;
 
     if ( $self->has_stderr ) {
 
@@ -340,7 +288,7 @@ sub setup_stderr {
             }
 
             open( STDERR, '>&' . fileno($self->stderr) )
-              or croak("Couldn't dup stdout handle to STDOUT: '$!'");
+              or croak("Couldn't dup stdout filehandle to STDOUT: '$!'");
         }
         else {
 
@@ -358,22 +306,72 @@ sub setup_stderr {
         binmode( $self->stderr );
         binmode( STDERR );
     }
-}
 
-sub setup_environment {
-    my $self = shift;
+    {
+        no warnings 'uninitialized';
 
-    no warnings 'uninitialized';
+        if ( $self->should_restore ) {
+            $self->{restore}->{environment} = { %ENV };
+        }
 
-    if ( $self->should_restore ) {
-        $self->{restore}->{environment} = { %ENV };
+        %ENV = %{ $self->environment };
     }
 
-    %ENV = %{ $self->environment };
+    if ( $INC{'CGI.pm'} ) {
+        CGI::initialize_globals();
+    }
+
+    $self->is_setup(1);
+
+    return $self;
 }
 
-my $HTTP_Token   = qr/[\x21\x23-\x27\x2A\x2B\x2D\x2E\x30-\x39\x41-\x5A\x5E-\x7A\x7C\x7E]/;
-my $HTTP_Version = qr/HTTP\/[0-9]+\.[0-9]+/;
+sub setup_content {
+    my $self  = shift;
+    my $stdin = shift || $self->stdin;
+
+    my $content = $self->request->content_ref;
+
+    if ( ref($content) eq 'SCALAR' ) {
+
+        if ( defined($$content) && length($$content) ) {
+
+            print( { $stdin } $$content )
+              or croak("Couldn't write request content SCALAR to stdin filehandle: '$!'");
+
+            if ( $self->should_rewind ) {
+
+                seek( $stdin, 0, SEEK_SET )
+                  or croak("Couldn't rewind stdin filehandle: '$!'");
+            }
+        }
+    }
+    elsif ( ref($content) eq 'CODE' ) {
+
+        while () {
+
+            my $chunk = &$content();
+
+            if ( defined($chunk) && length($chunk) ) {
+
+                print( { $stdin } $chunk )
+                  or croak("Couldn't write request content callback to stdin filehandle: '$!'");
+            }
+            else {
+                last;
+            }
+        }
+
+        if ( $self->should_rewind ) {
+
+            seek( $stdin, 0, SEEK_SET )
+              or croak("Couldn't rewind stdin filehandle: '$!'");
+        }
+    }
+    else {
+        croak("Couldn't write request content to stdin filehandle: 'Unknown request content $content'");
+    }
+}
 
 sub response {
     my $self   = shift;
@@ -384,7 +382,7 @@ sub response {
     if ( $self->should_rewind ) {
 
         seek( $self->stdout, 0, SEEK_SET )
-          or croak("Couldn't seek stdout handle: '$!'");
+          or croak("Couldn't rewind stdout filehandle: '$!'");
     }
 
     my $message  = undef;
@@ -450,10 +448,10 @@ sub response {
         if ( $params{sync} ) {
 
             my $position = tell( $self->stdout )
-              or croak("Couldn't get file position from stdout handle: '$!'");
+              or croak("Couldn't get file position from stdout filehandle: '$!'");
 
             sysseek( $self->stdout, $position, SEEK_SET )
-              or croak("Couldn't seek stdout handle: '$!'");
+              or croak("Couldn't seek stdout filehandle: '$!'");
         }
 
         return $response;
@@ -476,7 +474,7 @@ sub response {
             }
         }
         else {
-            croak("Couldn't read response content from stdin handle: '$!'");
+            croak("Couldn't read response content from stdin filehandle: '$!'");
         }
     }
 
@@ -496,39 +494,24 @@ sub restore {
     my $self = shift;
 
     if ( !$self->should_restore ) {
-        croak("An attempt was made to restore environment variables and STD handles which has not been saved.");
+        croak(   'An attempt was made to restore environment variables and '
+               . 'standard filehandles which has not been saved.' );
     }
 
     if ( !$self->is_setup ) {
-        croak("An attempt was made to restore environment variables and STD handles which has not been setup.");
+        croak(   'An attempt was made to restore environment variables and '
+               . 'standard filehandles which has not been setup.' );
     }
 
     if ( $self->is_restored ) {
-        croak("An attempt was made to restore environment variables and STD handles which has already been restored.");
+        croak(   'An attempt was made to restore environment variables and '
+               . 'standard filehandles which has already been restored.' );
     }
 
-    $self->restore_environment;
-    $self->restore_stdin;
-    $self->restore_stdout;
-    $self->restore_stderr;
-
-    $self->{restore} = {};
-
-    $self->is_restored(1);
-
-    return $self;
-}
-
-sub restore_environment {
-    my $self = shift;
-
-    no warnings 'uninitialized';
-
-    %ENV = %{ $self->{restore}->{environment} };
-}
-
-sub restore_stdin {
-    my $self = shift;
+    {
+        no warnings 'uninitialized';
+        %ENV = %{ $self->{restore}->{environment} };
+    }
 
     if ( $self->has_stdin ) {
 
@@ -548,13 +531,9 @@ sub restore_stdin {
         if ( $self->should_rewind ) {
 
             seek( $self->stdin, 0, SEEK_SET )
-              or croak("Couldn't rewind stdin handle: '$!'");
+              or croak("Couldn't rewind stdin filehandle: '$!'");
         }
     }
-}
-
-sub restore_stdout {
-    my $self = shift;
 
     if ( $self->has_stdout ) {
 
@@ -577,13 +556,9 @@ sub restore_stdout {
         if ( $self->should_rewind ) {
 
             seek( $self->stdout, 0, SEEK_SET )
-              or croak("Couldn't rewind stdout handle: '$!'");
+              or croak("Couldn't rewind stdout filehandle: '$!'");
         }
     }
-}
-
-sub restore_stderr {
-    my $self = shift;
 
     if ( $self->has_stderr ) {
 
@@ -606,9 +581,15 @@ sub restore_stderr {
         if ( $self->should_rewind ) {
 
             seek( $self->stderr, 0, SEEK_SET )
-              or croak("Couldn't rewind stderr handle: '$!'");
+              or croak("Couldn't rewind stderr filehandle: '$!'");
         }
     }
+
+    $self->{restore} = {};
+
+    $self->is_restored(1);
+
+    return $self;
 }
 
 sub DESTROY {
@@ -625,7 +606,7 @@ __END__
 
 =head1 NAME
 
-HTTP::Request::AsCGI - Setup a CGI environment from a HTTP::Request
+HTTP::Request::AsCGI - Setup a Common Gateway Interface environment from a HTTP::Request
 
 =head1 SYNOPSIS
 
@@ -665,11 +646,8 @@ Provides a convinient way of setting up an CGI environment from a HTTP::Request.
 
 =item * new
 
-Contructor
-
-  HTTP::Request->new( $request, %environment );
-
-  HTTP::Request->new( request => $request, environment => \%environment );
+Contructor, this method takes a hash of parameters. The following parameters are
+valid:
 
 =over 8
 
@@ -679,8 +657,8 @@ Contructor
 
 =item * stdin
 
-Filehandle to be used as C<STDIN>, defaults to a temporary file. If value is 
-C<undef>, C<STDIN> will be left as is.
+A filehandle to be used as standard input, defaults to a temporary filehandle.
+If C<stdin> is C<undef>, standard input will be left as is.
 
     stdin => IO::File->new_tmpfile
     stdin => IO::String->new
@@ -689,8 +667,8 @@ C<undef>, C<STDIN> will be left as is.
 
 =item * stdout
 
-Filehandle to be used as C<STDOUT>, defaults to a temporary file. If value is 
-C<undef>, C<STDOUT> will be left as is.
+A filehandle to be used as standard output, defaults to a temporary filehandle.
+If C<stdout> is C<undef>, standard output will be left as is.
 
     stdout => IO::File->new_tmpfile
     stdout => IO::String->new
@@ -699,8 +677,8 @@ C<undef>, C<STDOUT> will be left as is.
 
 =item * stderr
 
-Filehandle to be used as C<STDERR>, defaults to C<undef>. If value is C<undef>, 
-C<STDERR> will be left as is.
+A filehandle to be used as standard error, defaults to C<undef>. If C<stderr> is
+C<undef>, standard error will be left as is.
 
     stderr => IO::File->new_tmpfile
     stderr => IO::String->new
@@ -709,68 +687,122 @@ C<STDERR> will be left as is.
 
 =item * environment
 
+A C<HASH> of additional environment variables to be used in CGI.
+C<HTTP::Request::AsCGI> doesn't autmatically merge C<%ENV>, it has to be
+explicitly given if that is desired. Environment variables given in this
+C<HASH> isn't overridden by C<HTTP::Request::AsCGI>.
+
     environment => \%ENV
-    environment => { PATH => '/bin:/usr/bin' }
+    environment => { PATH => '/bin:/usr/bin', SERVER_SOFTWARE => 'Apache/1.3' }
+
+Following standard meta-variables (in addition to protocol-specific) is setup:
+
+    AUTH_TYPE
+    CONTENT_LENGTH
+    CONTENT_TYPE
+    GATEWAY_INTERFACE
+    PATH_INFO
+    SCRIPT_NAME
+    SERVER_NAME
+    SERVER_PORT
+    SERVER_PROTOCOL
+    SERVER_SOFTWARE
+    REMOTE_ADDR
+    REMOTE_HOST
+    REMOTE_USER
+    REQUEST_METHOD
+    QUERY_STRING
+
+Following non-standard but common meta-variables is setup:
+
+    HTTPS
+    REMOTE_PORT
+    REQUEST_URI
+
+Following meta-variables is B<not> setup but B<must> be provided in CGI:
+
+    PATH_TRANSLATED
+
+Following meta-variables is B<not> setup but common in CGI:
+
+    DOCUMENT_ROOT
+    SCRIPT_FILENAME
+    SERVER_ROOT
 
 =item * dup
+
+Boolean to indicate whether to C<dup> standard filehandle or to assign the
+typeglob representing the standard filehandle. Defaults to C<true>.
 
     dup => 0
     dup => 1
 
 =item * restore
 
+Boolean to indicate whether or not to restore environment variables and standard
+filehandles. Defaults to C<true>.
+
     restore => 0
     restore => 1
 
+If C<true> standard filehandles and environment variables will be saved duiring
+C<setup> for later use in C<restore>.
+
 =item * rewind
+
+Boolean to indicate whether or not to rewind standard filehandles. Defaults
+to C<true>.
 
     rewind => 0
     rewind => 1
 
 =item * content
 
+Boolean to indicate whether or not to request content should be written to
+C<stdin> filehandle when C<setup> is invoked. Defaults to C<true>.
+
     content => 0
     content => 1
 
 =back
 
-=item environment
+=item * setup
 
-Returns a hashref containing the environment that will be used in setup.
-Changing the hashref after setup has been called will have no effect.
+Attempts to setup standard filehandles and environment variables.
 
-=item setup
+=item * restore
 
-Setups the environment and descriptors.
+Attempts to restore standard filehandles and environment variables.
 
-=item restore
+=item * response
 
-Restores the environment and descriptors. Can only be called after setup.
+Attempts to parse C<stdout> filehandle into a L<HTTP::Response>.
 
-=item request
+=item * request
 
-Returns the request given to constructor.
+Accessor for L<HTTP::Request> that was given to constructor.
 
-=item response
+=item * environment
 
-Returns a HTTP::Response. Can only be called after restore.
+Accessor for environment variables to be used in C<setup>.
 
-=item stdin
+=item * stdin
 
-Accessor for handle that will be used for STDIN, must be a real seekable
-handle with an file descriptor. Defaults to a temporary IO::File instance.
+Accessor/Mutator for standard input filehandle.
 
-=item stdout
+=item * stdout
 
-Accessor for handle that will be used for STDOUT, must be a real seekable
-handle with an file descriptor. Defaults to a temporary IO::File instance.
+Accessor/Mutator for standard output filehandle.
 
-=item stderr
+=item * stderr
 
-Accessor for handle that will be used for STDERR, must be a real seekable
-handle with an file descriptor.
+Accessor/Mutator for standard error filehandle.
 
 =back
+
+=head1 DEPRECATED
+
+XXX Constructor
 
 =head1 SEE ALSO
 

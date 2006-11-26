@@ -19,7 +19,7 @@ my $response;
 
 {
     my $r = HTTP::Request->new( GET => 'http://www.host.com/' );
-    my $c = HTTP::Request::AsCGI->new( request => $r );
+    my $c = HTTP::Request::AsCGI->new($r);
 
     my $kid = fork();
 
