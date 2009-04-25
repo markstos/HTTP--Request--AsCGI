@@ -26,7 +26,7 @@ __PACKAGE__->mk_accessors( qw[ is_setup
                                stdout
                                stderr ] );
 
-our $VERSION = 0.6_01;
+our $VERSION = 0.5_01;
 
 sub new {
     my $class  = ref $_[0] ? ref shift : shift;
@@ -646,7 +646,7 @@ Provides a convinient way of setting up an CGI environment from a HTTP::Request.
 
 =item * new
 
-Contructor, this method takes a hash of parameters. The following parameters are
+Constructor, this method takes a hash of parameters. The following parameters are
 valid:
 
 =over 8
