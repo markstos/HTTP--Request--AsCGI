@@ -1,5 +1,9 @@
 This file documents the revision history for Perl extension HTTP::Request::AsCGI.
 
+0.5_02 2009-04-29
+    - Avoid mixing buffered and unbuffered IO and flush STDIN after writing
+      request content to it. (hdp)
+
 0.5  2006-01-20
     - Fixed bug where content was overridden on 500 responses.
 

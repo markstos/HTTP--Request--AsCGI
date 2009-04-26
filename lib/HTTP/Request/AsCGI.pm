@@ -85,11 +85,14 @@ sub setup {
 
     if ( $self->request->content_length ) {
 
-        syswrite( $self->stdin, $self->request->content )
+        $self->stdin->print($self->request->content)
           or croak("Can't write request content to stdin handle: $!");
 
-        sysseek( $self->stdin, 0, SEEK_SET )
+        $self->stdin->seek(0, SEEK_SET)
           or croak("Can't seek stdin handle: $!");
+
+        $self->stdin->flush
+          or croak("Can't flush stdin handle: $!");
     }
 
     open( $self->{restore}->{stdin}, '<&', STDIN->fileno )
