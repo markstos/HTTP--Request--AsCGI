@@ -12,7 +12,7 @@ use IO::File;
 
 __PACKAGE__->mk_accessors(qw[ enviroment request stdin stdout stderr ]);
 
-our $VERSION = 0.5;
+our $VERSION = 0.5_02;
 
 sub new {
     my $class   = shift;
