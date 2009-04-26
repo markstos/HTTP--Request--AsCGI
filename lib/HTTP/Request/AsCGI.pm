@@ -12,7 +12,7 @@ use IO::File;
 
 __PACKAGE__->mk_accessors(qw[ enviroment request stdin stdout stderr ]);
 
-our $VERSION = 0.5_02;
+our $VERSION = 0.5_03;
 
 sub new {
     my $class   = shift;
@@ -95,20 +95,20 @@ sub setup {
           or croak("Can't flush stdin handle: $!");
     }
 
-    open( $self->{restore}->{stdin}, '<&', STDIN->fileno )
+    open( $self->{restore}->{stdin}, '<&'. STDIN->fileno )
       or croak("Can't dup stdin: $!");
 
-    open( STDIN, '<&=', $self->stdin->fileno )
+    open( STDIN, '<&='. $self->stdin->fileno )
       or croak("Can't open stdin: $!");
 
     binmode( STDIN );
 
     if ( $self->stdout ) {
 
-        open( $self->{restore}->{stdout}, '>&', STDOUT->fileno )
+        open( $self->{restore}->{stdout}, '>&'. STDOUT->fileno )
           or croak("Can't dup stdout: $!");
 
-        open( STDOUT, '>&=', $self->stdout->fileno )
+        open( STDOUT, '>&='. $self->stdout->fileno )
           or croak("Can't open stdout: $!");
 
         binmode( $self->stdout );
@@ -117,10 +117,10 @@ sub setup {
 
     if ( $self->stderr ) {
 
-        open( $self->{restore}->{stderr}, '>&', STDERR->fileno )
+        open( $self->{restore}->{stderr}, '>&'. STDERR->fileno )
           or croak("Can't dup stderr: $!");
 
-        open( STDERR, '>&=', $self->stderr->fileno )
+        open( STDERR, '>&='. $self->stderr->fileno )
           or croak("Can't open stderr: $!");
 
         binmode( $self->stderr );
@@ -230,7 +230,7 @@ sub restore {
         %ENV = %{ $self->{restore}->{enviroment} };
     }
 
-    open( STDIN, '<&', $self->{restore}->{stdin} )
+    open( STDIN, '<&'. fileno($self->{restore}->{stdin}) )
       or croak("Can't restore stdin: $!");
 
     sysseek( $self->stdin, 0, SEEK_SET )
@@ -241,7 +241,7 @@ sub restore {
         STDOUT->flush
           or croak("Can't flush stdout: $!");
 
-        open( STDOUT, '>&', $self->{restore}->{stdout} )
+        open( STDOUT, '>&'. fileno($self->{restore}->{stdout}) )
           or croak("Can't restore stdout: $!");
 
         sysseek( $self->stdout, 0, SEEK_SET )
@@ -253,7 +253,7 @@ sub restore {
         STDERR->flush
           or croak("Can't flush stderr: $!");
 
-        open( STDERR, '>&', $self->{restore}->{stderr} )
+        open( STDERR, '>&'. fileno($self->{restore}->{stderr}) )
           or croak("Can't restore stderr: $!");
 
         sysseek( $self->stderr, 0, SEEK_SET )

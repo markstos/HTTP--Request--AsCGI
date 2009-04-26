@@ -2,7 +2,7 @@ NAME
     HTTP::Request::AsCGI - Setup a CGI enviroment from a HTTP::Request
 
 VERSION
-    0.5_02
+    0.5_03
 
 SYNOPSIS
         use CGI;

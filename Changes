@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension HTTP::Request::AsCGI.
 
+0.5_03 2009-04-29
+    - RT#18075: Play more nicely with Perl 5.6's open(). (hdp)
+
 0.5_02 2009-04-29
     - Avoid mixing buffered and unbuffered IO and flush STDIN after writing
       request content to it. (hdp)
