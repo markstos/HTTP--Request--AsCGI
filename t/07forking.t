@@ -10,7 +10,7 @@ use HTTP::Request::AsCGI;
 use Test::More;
 
 unless ( $Config{d_fork} ) {
-    plan skip_all => 'This test requires a platform that supports fork()';
+    plan skip_all => 'This test requires a plattform that supports fork()';
 }
 
 plan tests => 8;
@@ -19,7 +19,7 @@ my $response;
 
 {
     my $r = HTTP::Request->new( GET => 'http://www.host.com/' );
-    my $c = HTTP::Request::AsCGI->new( request => $r );
+    my $c = HTTP::Request::AsCGI->new($r);
 
     my $kid = fork();
 

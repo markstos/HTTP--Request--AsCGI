@@ -14,11 +14,8 @@ $r->content('STDIN');
 $r->content_length(5);
 $r->content_type('text/plain');
 
-my $c = HTTP::Request::AsCGI->new(
-    request => $r,
-    stderr  => IO::File->new_tmpfile
-);
-
+my $c = HTTP::Request::AsCGI->new($r);
+$c->stderr(IO::File->new_tmpfile);
 $c->setup;
 
 print STDOUT 'STDOUT';

@@ -1,6 +1,6 @@
 #!perl
 
-use Test::More tests => 1;
+use Test::More 'no_plan';
 
 use strict;
 use warnings;

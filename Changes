@@ -1,31 +1,20 @@
 This file documents the revision history for Perl extension HTTP::Request::AsCGI.
 
-0.5_01  2009-04-25
-    - Added support for Perl 5.6, by Hans Dieter Pearcey (hdp@cpan.org)
-    - Added support for in-memory filehandles as standard filehandles
-    - Added support for AUTH_TYPE and REMOTE_USER, currently only support 
-      Basic and Digest auth schemes.
-    - Added support for CODE in request content
-    - Constructor parameters has changed, "old" way of invoking constructor has
-      been moved to deprecation. Please see DEPRECATED section in POD.
-    - Added several new options to constructor for more advanced usage
-    - Major cleanup of internals, more readable and maintainable
-    - Fixed PATH_INFO, must not be urlencoded
-
-0.5  2006-01-20
+0.5  2006-01-20 00:00:00 2005
     - Fixed bug where content was overridden on 500 responses.
 
-0.4  2006-01-19
+0.4  2006-01-19 00:00:00 2005
     - Fixed #15999 return a 500 response when message is empty, reported by Chris Dolan <cdolan@cpan.org>
     - Fixed Status header bug
     - Bumped HTTP::Response requirement to 1.53 and drop our own message parsing.
 
-0.3  2006-01-06
+0.3  2006-01-06 00:00:00 2005
     - Silence uninitialized warnings when restoring %ENV
     - Fixed dup and restore of STDIN.
 
-0.2  2005-10-31
+0.2  2005-10-31 00:55:00 2005
     - Added test for response.
 
-0.1  2005-10-21
+0.1  2005-10-21 00:00:00 2005
     - First release.
+

@@ -13,7 +13,7 @@ my $response;
 
 {
     my $r = HTTP::Request->new( GET => 'http://www.host.com/' );
-    my $c = HTTP::Request::AsCGI->new( request => $r );
+    my $c = HTTP::Request::AsCGI->new($r);
 
     $c->setup;
 
@@ -29,10 +29,10 @@ ok( length($response->content) > 0, 'Response Content' );
 
 {
     my $r = HTTP::Request->new( GET => 'http://www.host.com/' );
-    my $c = HTTP::Request::AsCGI->new( request => $r );
+    my $c = HTTP::Request::AsCGI->new($r);
 
     $c->setup;
-
+    
     print "Content-Type: text/plain\n";
     print "Status: 500 Borked\n";
     print "\n";

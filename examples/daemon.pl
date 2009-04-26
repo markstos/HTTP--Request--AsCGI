@@ -18,7 +18,7 @@ my $server = HTTP::Daemon->new( LocalPort => 3000, ReuseAddr => 1 )
 print "Please contact me at: <URL:", $server->url, ">\n";
 
 while ( my $client = $server->accept ) {
-
+    
     my %e = (
         REMOTE_ADDR => $client->peerhost,
         REMOTE_HOST => $client->peerhost,
@@ -53,7 +53,7 @@ while ( my $client = $server->accept ) {
               $q->end_form,
               $q->h2('Parameters'),
               $q->Dump,
-              $q->h2('Environment'),
+              $q->h2('Enviroment'),
               $q->table(
                   $q->Tr( [
                       map{ $q->td( [ $_, $ENV{$_} ] ) } sort keys %ENV
