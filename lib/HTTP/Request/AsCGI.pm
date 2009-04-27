@@ -1,5 +1,5 @@
 package HTTP::Request::AsCGI;
-
+# ABSTRACT: Set up a CGI environment from an HTTP::Request
 use strict;
 use warnings;
 use bytes;
@@ -11,8 +11,6 @@ use IO::Handle;
 use IO::File;
 
 __PACKAGE__->mk_accessors(qw[ enviroment request stdin stdout stderr ]);
-
-our $VERSION = 0.5_03;
 
 sub new {
     my $class   = shift;
@@ -274,10 +272,6 @@ sub DESTROY {
 
 __END__
 
-=head1 NAME
-
-HTTP::Request::AsCGI - Setup a CGI enviroment from a HTTP::Request
-
 =head1 SYNOPSIS
 
     use CGI;
@@ -316,7 +310,7 @@ Provides a convinient way of setting up an CGI enviroment from a HTTP::Request.
 
 =item new ( $request [, key => value ] )
 
-Contructor, first argument must be a instance of HTTP::Request
+Constructor, first argument must be a instance of HTTP::Request
 followed by optional pairs of environment key and value.
 
 =item enviroment
@@ -372,14 +366,5 @@ handle with an file descriptor.
 =head1 THANKS TO
 
 Thomas L. Shinnick for his valuable win32 testing.
-
-=head1 AUTHOR
-
-Christian Hansen, C<ch@ngmedia.com>
-
-=head1 LICENSE
-
-This library is free software. You can redistribute it and/or modify 
-it under the same terms as perl itself.
 
 =cut
