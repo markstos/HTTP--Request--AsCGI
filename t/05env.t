@@ -18,7 +18,10 @@ $c->setup;
 is( $ENV{GATEWAY_INTERFACE}, 'CGI/1.1', 'GATEWAY_INTERFACE' );
 is( $ENV{HTTP_HOST}, 'www.host.com:80', 'HTTP_HOST' );
 is( $ENV{HTTP_X_TEST}, 'Test', 'HTTP_X_TEST' );
-is( $ENV{PATH_INFO}, '/my path/', 'PATH_INFO' );
+TODO: {
+    local $TODO = 'backed out as it breaks Catalyst';
+    is( $ENV{PATH_INFO}, '/my path/', 'PATH_INFO' );
+}
 is( $ENV{QUERY_STRING}, 'a=1&b=2', 'QUERY_STRING' );
 is( $ENV{SCRIPT_NAME}, '/cgi-bin/script.cgi', 'SCRIPT_NAME' );
 is( $ENV{REQUEST_METHOD}, 'GET', 'REQUEST_METHOD' );
