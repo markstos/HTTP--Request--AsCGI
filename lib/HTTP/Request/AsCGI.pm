@@ -313,7 +313,7 @@ __END__
     
 =head1 DESCRIPTION
 
-Provides a convinient way of setting up an CGI environment from a HTTP::Request.
+Provides a convenient way of setting up an CGI environment from an HTTP::Request.
 
 =head1 METHODS
 
@@ -321,8 +321,8 @@ Provides a convinient way of setting up an CGI environment from a HTTP::Request.
 
 =item new ( $request [, key => value ] )
 
-Constructor, first argument must be a instance of HTTP::Request
-followed by optional pairs of environment key and value.
+Constructor.  The first argument must be a instance of HTTP::Request, followed
+by optional pairs of environment key and value.
 
 =item environment
 
@@ -331,7 +331,7 @@ Changing the hashref after setup has been called will have no effect.
 
 =item setup
 
-Setups the environment and descriptors.
+Sets up the environment and descriptors.
 
 =item restore
 
