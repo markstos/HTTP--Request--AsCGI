@@ -10,7 +10,18 @@ use HTTP::Response;
 use IO::Handle;
 use IO::File;
 
-__PACKAGE__->mk_accessors(qw[ enviroment request stdin stdout stderr ]);
+__PACKAGE__->mk_accessors(qw[ environment request stdin stdout stderr ]);
+
+# old typo
+=begin Pod::Coverage
+
+  enviroment
+
+=end Pod::Coverage
+
+=cut
+
+*enviroment = \&environment;
 
 sub new {
     my $class   = shift;
@@ -34,7 +45,7 @@ sub new {
 
     $uri = $uri->canonical;
 
-    my $enviroment = {
+    my $environment = {
         GATEWAY_INTERFACE => 'CGI/1.1',
         HTTP_HOST         => $uri->host_port,
         HTTPS             => ( $uri->scheme eq 'https' ) ? 'ON' : 'OFF',  # not in RFC 3875
@@ -59,17 +70,17 @@ sub new {
         $key =~ tr/-/_/;
         $key =~ s/^HTTP_// if $field =~ /^Content-(Length|Type)$/;
 
-        unless ( exists $enviroment->{$key} ) {
-            $enviroment->{$key} = $request->headers->header($field);
+        unless ( exists $environment->{$key} ) {
+            $environment->{$key} = $request->headers->header($field);
         }
     }
 
-    unless ( $enviroment->{SCRIPT_NAME} eq '/' && $enviroment->{PATH_INFO} ) {
-        $enviroment->{PATH_INFO} =~ s/^\Q$enviroment->{SCRIPT_NAME}\E/\//;
-        $enviroment->{PATH_INFO} =~ s/^\/+/\//;
+    unless ( $environment->{SCRIPT_NAME} eq '/' && $environment->{PATH_INFO} ) {
+        $environment->{PATH_INFO} =~ s/^\Q$environment->{SCRIPT_NAME}\E/\//;
+        $environment->{PATH_INFO} =~ s/^\/+/\//;
     }
 
-    $self->enviroment($enviroment);
+    $self->environment($environment);
 
     return $self;
 }
@@ -77,7 +88,7 @@ sub new {
 sub setup {
     my $self = shift;
 
-    $self->{restore}->{enviroment} = {%ENV};
+    $self->{restore}->{environment} = {%ENV};
 
     binmode( $self->stdin );
 
@@ -127,7 +138,7 @@ sub setup {
 
     {
         no warnings 'uninitialized';
-        %ENV = %{ $self->enviroment };
+        %ENV = %{ $self->environment };
     }
 
     if ( $INC{'CGI.pm'} ) {
@@ -225,7 +236,7 @@ sub restore {
 
     {
         no warnings 'uninitialized';
-        %ENV = %{ $self->{restore}->{enviroment} };
+        %ENV = %{ $self->{restore}->{environment} };
     }
 
     open( STDIN, '<&'. fileno($self->{restore}->{stdin}) )
@@ -292,7 +303,7 @@ __END__
         
         $stdout = $c->stdout;
         
-        # enviroment and descriptors will automatically be restored 
+        # environment and descriptors will automatically be restored
         # when $c is destructed.
     }
     
@@ -302,7 +313,7 @@ __END__
     
 =head1 DESCRIPTION
 
-Provides a convinient way of setting up an CGI enviroment from a HTTP::Request.
+Provides a convinient way of setting up an CGI environment from a HTTP::Request.
 
 =head1 METHODS
 
@@ -313,7 +324,7 @@ Provides a convinient way of setting up an CGI enviroment from a HTTP::Request.
 Constructor, first argument must be a instance of HTTP::Request
 followed by optional pairs of environment key and value.
 
-=item enviroment
+=item environment
 
 Returns a hashref containing the environment that will be used in setup. 
 Changing the hashref after setup has been called will have no effect.
@@ -324,7 +335,7 @@ Setups the environment and descriptors.
 
 =item restore
 
-Restores the enviroment and descriptors. Can only be called after setup.
+Restores the environment and descriptors. Can only be called after setup.
 
 =item request
 
