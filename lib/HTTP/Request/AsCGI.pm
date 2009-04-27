@@ -50,7 +50,8 @@ sub new {
         GATEWAY_INTERFACE => 'CGI/1.1',
         HTTP_HOST         => $uri->host_port,
         HTTPS             => ( $uri->scheme eq 'https' ) ? 'ON' : 'OFF',  # not in RFC 3875
-        PATH_INFO         => URI::Escape::uri_unescape($uri->path),
+#        PATH_INFO         => URI::Escape::uri_unescape($uri->path),
+        PATH_INFO         => $uri->path,
         QUERY_STRING      => $uri->query || '',
         SCRIPT_NAME       => '/',
         SERVER_NAME       => $uri->host,

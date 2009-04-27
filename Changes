@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension HTTP::Request::AsCGI.
 
+0.71 2009-04-27
+    - revert PATH_INFO change, Catalyst tests were failing
+
 0.7 2009-04-26
     - PATH_INFO is now uri_unescaped
 
