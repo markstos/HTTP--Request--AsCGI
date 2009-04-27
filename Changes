@@ -1,5 +1,9 @@
 This file documents the revision history for Perl extension HTTP::Request::AsCGI.
 
+0.6 2009-04-29
+    - Fix long-standing 'enviroment' typo
+    - Switch to Dist::Zilla
+
 0.5_03 2009-04-29
     - RT#18075: Play more nicely with Perl 5.6's open(). (hdp)
 
