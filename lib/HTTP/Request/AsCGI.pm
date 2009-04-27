@@ -9,6 +9,7 @@ use Carp;
 use HTTP::Response;
 use IO::Handle;
 use IO::File;
+use URI ();
 use URI::Escape ();
 
 __PACKAGE__->mk_accessors(qw[ environment request stdin stdout stderr ]);
@@ -23,6 +24,13 @@ __PACKAGE__->mk_accessors(qw[ environment request stdin stdout stderr ]);
 =cut
 
 *enviroment = \&environment;
+
+my %reserved = map { sprintf('%02x', ord($_)) => 1 } split //, $URI::reserved;
+sub _uri_safe_unescape {
+    my ($s) = @_;
+    $s =~ s/%([a-fA-F0-9]{2})/$reserved{lc($1)} ? "%$1" : chr(hex($1))/ge;
+    $s;
+}
 
 sub new {
     my $class   = shift;
@@ -50,8 +58,7 @@ sub new {
         GATEWAY_INTERFACE => 'CGI/1.1',
         HTTP_HOST         => $uri->host_port,
         HTTPS             => ( $uri->scheme eq 'https' ) ? 'ON' : 'OFF',  # not in RFC 3875
-#        PATH_INFO         => URI::Escape::uri_unescape($uri->path),
-        PATH_INFO         => $uri->path,
+        PATH_INFO         => _uri_safe_unescape($uri->path),
         QUERY_STRING      => $uri->query || '',
         SCRIPT_NAME       => '/',
         SERVER_NAME       => $uri->host,
