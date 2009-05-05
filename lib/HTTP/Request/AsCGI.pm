@@ -5,6 +5,8 @@ use warnings;
 use bytes;
 use base 'Class::Accessor::Fast';
 
+our $VERSION = '0.9';
+
 use Carp;
 use HTTP::Response;
 use IO::Handle;
@@ -28,8 +30,8 @@ __PACKAGE__->mk_accessors(qw[ environment request stdin stdout stderr ]);
 my %reserved = map { sprintf('%02x', ord($_)) => 1 } split //, $URI::reserved;
 sub _uri_safe_unescape {
     my ($s) = @_;
-    $s =~ s/%([a-fA-F0-9]{2})/$reserved{lc($1)} ? "%$1" : chr(hex($1))/ge;
-    $s;
+    $s =~ s/%([a-fA-F0-9]{2})/$reserved{lc($1)} ? "%$1" : pack('C', hex($1))/ge;
+    $s
 }
 
 sub new {
@@ -58,7 +60,7 @@ sub new {
         GATEWAY_INTERFACE => 'CGI/1.1',
         HTTP_HOST         => $uri->host_port,
         HTTPS             => ( $uri->scheme eq 'https' ) ? 'ON' : 'OFF',  # not in RFC 3875
-        PATH_INFO         => _uri_safe_unescape($uri->path),
+        PATH_INFO         => $uri->path,
         QUERY_STRING      => $uri->query || '',
         SCRIPT_NAME       => '/',
         SERVER_NAME       => $uri->host,
@@ -72,6 +74,8 @@ sub new {
         REQUEST_METHOD    => $request->method,
         @_
     };
+
+    $environment->{PATH_INFO} = _uri_safe_unescape($environment->{PATH_INFO});
 
     foreach my $field ( $request->headers->header_field_names ) {
 
