@@ -75,7 +75,12 @@ sub new {
         @_
     };
 
-    $environment->{PATH_INFO} = _uri_safe_unescape($environment->{PATH_INFO});
+    # RFC 3875 says PATH_INFO is not URI-encoded. That's really
+    # annoying for applications that you can't tell "%2F" vs "/", but
+    # doing the partial decoding then makes it impossible to tell
+    # "%252F" vs "%2F". Encoding everything is more compatible to what
+    # web servers like Apache or lighttpd do, anyways.
+    $environment->{PATH_INFO} = URI::Escape::uri_unescape($environment->{PATH_INFO});
 
     foreach my $field ( $request->headers->header_field_names ) {
 
