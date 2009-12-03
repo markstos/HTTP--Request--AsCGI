@@ -1,6 +1,6 @@
 #!perl
 
-use Test::More tests => 10;
+use Test::More tests => 11;
 
 use strict;
 use warnings;
@@ -8,6 +8,8 @@ use warnings;
 use HTTP::Request;
 use HTTP::Request::AsCGI;
 use Encode;
+
+$ENV{__PRESERVE_ENV_TEST} = 1;
 
 my $r = HTTP::Request->new( GET => 'http://www.host.com/cgi-bin/script.cgi/my%20path%2F?a=1&b=2', [ 'X-Test' => 'Test' ] );
 my %e = (
@@ -30,6 +32,8 @@ is( $ENV{SCRIPT_NAME}, '/cgi-bin/script.cgi', 'SCRIPT_NAME' );
 is( $ENV{REQUEST_METHOD}, 'GET', 'REQUEST_METHOD' );
 is( $ENV{SERVER_NAME}, 'www.host.com', 'SERVER_NAME' );
 is( $ENV{SERVER_PORT}, '80', 'SERVER_PORT' );
+
+is( $ENV{__PRESERVE_ENV_TEST}, 1, 'PRESERVE_ENV' );
 
 $c->restore;
 
