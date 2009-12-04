@@ -156,7 +156,7 @@ sub setup {
 
     {
         no warnings 'uninitialized';
-        %ENV = %{ $self->environment };
+        %ENV = %ENV, %{ $self->environment };
     }
 
     if ( $INC{'CGI.pm'} ) {
@@ -181,7 +181,7 @@ sub response {
         $headers .= $line;
         last if $headers =~ /\x0d?\x0a\x0d?\x0a$/;
     }
-    
+
     unless ( defined $headers ) {
         $headers = "HTTP/1.1 500 Internal Server Error\x0d\x0a";
     }
@@ -208,7 +208,7 @@ sub response {
         $response->code($code);
         $response->message($message);
     }
-    
+
     my $length = ( stat( $self->stdout ) )[7] - tell( $self->stdout );
 
     if ( $response->code == 500 && !$length ) {
@@ -306,36 +306,36 @@ __END__
     use CGI;
     use HTTP::Request;
     use HTTP::Request::AsCGI;
-    
+
     my $request = HTTP::Request->new( GET => 'http://www.host.com/' );
     my $stdout;
-    
+
     {
         my $c = HTTP::Request::AsCGI->new($request)->setup;
         my $q = CGI->new;
-        
+
         print $q->header,
               $q->start_html('Hello World'),
               $q->h1('Hello World'),
               $q->end_html;
-        
+
         $stdout = $c->stdout;
-        
+
         # environment and descriptors will automatically be restored
         # when $c is destructed.
     }
-    
+
     while ( my $line = $stdout->getline ) {
         print $line;
     }
-    
+
 =head1 DESCRIPTION
 
 Provides a convenient way of setting up an CGI environment from an HTTP::Request.
 
 =head1 METHODS
 
-=over 4 
+=over 4
 
 =item new ( $request [, key => value ] )
 
@@ -344,7 +344,7 @@ by optional pairs of environment key and value.
 
 =item environment
 
-Returns a hashref containing the environment that will be used in setup. 
+Returns a hashref containing the environment that will be used in setup.
 Changing the hashref after setup has been called will have no effect.
 
 =item setup
