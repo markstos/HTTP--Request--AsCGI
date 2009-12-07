@@ -1,10 +1,12 @@
 This file documents the revision history for Perl extension HTTP::Request::AsCGI.
 
+1.1 2009-12-07
+	- added test to check that %ENV is preserved after setup is called
+	- setup now concatenates its environment to %ENV instead of replacing it
+
 1.0 2009-11-30
     - Change how PATH_INFO is decoded so that everything is decoded, including
       URI reserved characters (RT#50082)
-	- added test to check that %ENV is preserved after setup is called
-	- setup now concatenates its environment to %ENV instead of replacing it
 
 0.9 2009-04-27
     - unescape PATH_INFO more safely

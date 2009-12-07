@@ -5,7 +5,7 @@ use warnings;
 use bytes;
 use base 'Class::Accessor::Fast';
 
-our $VERSION = '1.0';
+our $VERSION = '1.1';
 
 use Carp;
 use HTTP::Response;
