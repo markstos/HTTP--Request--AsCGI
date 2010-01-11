@@ -54,6 +54,9 @@ sub new {
     $uri->port(80)          unless $uri->port;
     $uri->host_port($host)  unless !$host || ( $host eq $uri->host_port );
 
+    # Get it before canonicalized so REQUEST_URI can be as raw as possible
+    my $request_uri = $uri->path_query;
+
     $uri = $uri->canonical;
 
     my $environment = {
@@ -70,7 +73,7 @@ sub new {
         REMOTE_ADDR       => '127.0.0.1',
         REMOTE_HOST       => 'localhost',
         REMOTE_PORT       => int( rand(64000) + 1000 ),                   # not in RFC 3875
-        REQUEST_URI       => $uri->path_query,                            # not in RFC 3875
+        REQUEST_URI       => $request_uri,                                # not in RFC 3875
         REQUEST_METHOD    => $request->method,
         @_
     };
