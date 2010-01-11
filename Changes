@@ -1,5 +1,9 @@
 This file documents the revision history for Perl extension HTTP::Request::AsCGI.
 
+1.2
+    - Fixed the %ENV concatenation that's broken in 1.1 but wasn't shipped to CPAN (miyagawa)
+    - REQUEST_URI is trying to replicate as raw values as possible, without being canonicalized (miyagawa)
+
 1.1 2009-12-07
 	- added test to check that %ENV is preserved after setup is called
 	- setup now concatenates its environment to %ENV instead of replacing it
