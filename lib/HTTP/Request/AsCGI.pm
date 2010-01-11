@@ -156,7 +156,7 @@ sub setup {
 
     {
         no warnings 'uninitialized';
-        %ENV = %ENV, %{ $self->environment };
+        %ENV = (%ENV, %{ $self->environment });
     }
 
     if ( $INC{'CGI.pm'} ) {
