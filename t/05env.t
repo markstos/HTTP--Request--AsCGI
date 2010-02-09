@@ -16,6 +16,7 @@ use Encode;
 
 plan tests => 11;
 
+local %ENV;
 $ENV{__PRESERVE_ENV_TEST} = 1;
 
 my $r = HTTP::Request->new( GET => 'http://www.host.com/cgi-bin/script.cgi/my%20path%2F?a=1&b=2', [ 'X-Test' => 'Test' ] );
