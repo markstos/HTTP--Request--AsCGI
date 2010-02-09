@@ -1,13 +1,20 @@
 #!perl
 
-use Test::More tests => 11;
+use Test::More;
 
 use strict;
 use warnings;
 
+BEGIN {
+    eval { require Encode }
+        or plan skip_all => 'This test requires Encode';
+}
+
 use HTTP::Request;
 use HTTP::Request::AsCGI;
 use Encode;
+
+plan tests => 11;
 
 $ENV{__PRESERVE_ENV_TEST} = 1;
 
