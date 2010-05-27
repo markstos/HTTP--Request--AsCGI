@@ -15,6 +15,7 @@ use URI::Escape ();
 __PACKAGE__->mk_accessors(qw[ environment request stdin stdout stderr ]);
 
 # old typo
+
 =begin Pod::Coverage
 
   enviroment
@@ -67,7 +68,7 @@ sub new {
         SERVER_NAME       => $uri->host,
         SERVER_PORT       => $uri->port,
         SERVER_PROTOCOL   => $request->protocol || 'HTTP/1.1',
-        SERVER_SOFTWARE   => "HTTP-Request-AsCGI/$VERSION",
+        SERVER_SOFTWARE   => 'HTTP-Request-AsCGI/' . our $VERSION,
         REMOTE_ADDR       => '127.0.0.1',
         REMOTE_HOST       => 'localhost',
         REMOTE_PORT       => int( rand(64000) + 1000 ),                   # not in RFC 3875
