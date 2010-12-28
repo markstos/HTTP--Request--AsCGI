@@ -331,6 +331,25 @@ __END__
         print $line;
     }
 
+    ######
+
+    # A second example: cleanly simulate a file upload
+    use HTTP::Request::Common;
+    use HTTP::Request::AsCGI;
+
+    my $c = HTTP::Request::AsCGI->new(
+        POST "/",
+            Content_Type => 'form-data',
+            Content => [
+                foo        => 'zoo',
+                field_name => [ "path/to/file.txt" ],
+            ],
+    )->setup;
+
+    my $q = CGI->new;
+    my $value = $q->param('foo');
+    my $fh = $q->upload('field_name');
+
 =head1 DESCRIPTION
 
 Provides a convenient way of setting up an CGI environment from an HTTP::Request.
